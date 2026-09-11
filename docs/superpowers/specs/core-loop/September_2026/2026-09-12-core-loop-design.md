@@ -60,6 +60,7 @@ type Habit = {
   target: number;
   unit: string;
   ticketReward: number;
+  quickAdd: number[]; // increment amounts offered as buttons
 };
 
 type Character = {
@@ -72,15 +73,19 @@ type Character = {
 
 **v1 gym catalog** (7 habits × 1 ticket = 7 potential, capped at 5):
 
-| id            | name         | target | unit    | ticketReward |
-| ------------- | ------------ | ------ | ------- | ------------ |
-| `pullups`     | Pull-ups     | 10     | reps    | 1            |
-| `pushups`     | Push-ups     | 30     | reps    | 1            |
-| `squats`      | Squats       | 30     | reps    | 1            |
-| `plank`       | Plank        | 60     | seconds | 1            |
-| `run`         | Run          | 2      | km      | 1            |
-| `gym_session` | Gym session  | 1      | session | 1            |
-| `protein`     | Protein goal | 1      | day     | 1            |
+| id            | name         | target | unit    | ticketReward | quickAdd         |
+| ------------- | ------------ | ------ | ------- | ------------ | ---------------- |
+| `pullups`     | Pull-ups     | 10     | reps    | 1            | [1, 5, 10]       |
+| `pushups`     | Push-ups     | 30     | reps    | 1            | [5, 10, 20]      |
+| `squats`      | Squats       | 30     | reps    | 1            | [5, 10, 20]      |
+| `plank`       | Plank        | 60     | seconds | 1            | [15, 30, 60]     |
+| `run`         | Run          | 2000   | m       | 1            | [250, 500, 1000] |
+| `gym_session` | Gym session  | 1      | session | 1            | [1]              |
+| `protein`     | Protein goal | 1      | day     | 1            | [1]              |
+
+`run` is measured in metres rather than kilometres so that `habit_logs.count`
+stays an INTEGER column. Sub-kilometre increments would otherwise require a
+REAL column and float-comparison handling in the completion check.
 
 Potential daily earnings deliberately exceed the cap, so the cap is live
 behaviour rather than dead code, and users get to choose which habits to
@@ -293,20 +298,47 @@ character in the collection; confirm all state survives an app restart.
 
 ## 8. Testing strategy
 
-- **Roll engine:** heavy unit tests with seeded RNG — rate distribution
-  over large samples, pity fires at exactly 60, pity resets on a natural
-  5★.
-- **Services:** integration tests against a temporary SQLite file,
-  covering the daily cap clipping and ledger arithmetic.
-- **Screens:** manual device testing. React Native component tests are
-  deliberately not part of v1 — low value at this stage.
+`expo-sqlite` is a native module and cannot execute under Jest in Node.
+Rather than introduce a second SQLite driver purely for tests, every rule
+that is worth testing is extracted into a **pure function** that takes its
+inputs as arguments, and the database layer above it is kept thin enough
+to be verified on device.
+
+- **Roll engine** (`services/gacha/engine.ts`): heavy unit tests with
+  seeded RNG — rate distribution over large samples, pity fires at exactly
+  60, pity resets on a natural 5★.
+- **Cap logic** (`services/tickets/cap.ts`): pure `clampAward` covering
+  under-cap, clipped-at-cap, and at-cap cases.
+- **Completion logic** (`services/habits/completion.ts`): pure
+  `shouldAward` covering the target-crossing edges and the
+  already-completed guard.
+- **Date helper** (`lib/date.ts`): local-date formatting, including a case
+  that would break under a naive UTC implementation.
+- **Database wrappers and screens:** manual device testing. React Native
+  component tests are deliberately not part of v1 — low value at this
+  stage.
+
+This is the reason the pure/persistent split in §5 matters: it is what
+makes the rules testable at all.
 
 ## 9. Error handling
 
 1. **Double-spend on summon.** Rapid taps could spend one ticket twice or
-   produce two rolls from one spend. The spend → roll → persist sequence
-   runs in a single database transaction, and the summon button disables
-   while a pull is in flight.
+   produce two rolls from one spend. Three layers address this:
+   - `spendTicket` reads the balance and inserts its debit row inside one
+     transaction. SQLite serialises transactions, so two concurrent calls
+     against a balance of 1 cannot both succeed — the second reads 0 and
+     returns `false`. This is what actually prevents a double spend.
+   - The summon button disables while a pull is in flight.
+   - A module-level in-flight guard in the summon service rejects a second
+     concurrent call even if the UI guard is bypassed.
+
+   The spend, roll, and persist steps deliberately do **not** share one
+   transaction: `spendTicket` owns its own, and SQLite cannot nest
+   transactions. The residual window is a crash between spending and
+   persisting, which can lose a ticket but can never duplicate a character
+   or grant one for free.
+
 2. **Database init failure.** Local-only storage makes this rare but
    unrecoverable. Initialisation is wrapped so failure renders an explicit
    error screen rather than a blank app.
