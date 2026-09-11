@@ -41,6 +41,16 @@ Feature code (once habit tracking / gacha / collection screens exist) goes
 under `src/`, grouped by feature once there's enough of it to justify
 subfolders — don't pre-create empty feature folders.
 
+## Git workflow
+
+- `main` is the trunk. Never commit directly to it — branch, then PR/merge back.
+- Branch naming:
+  - New features: `feat/<short-description>` (e.g. `feat/gacha-pull-animation`)
+  - Bug fixes: `bug/<short-description>` (e.g. `bug/streak-reset-off-by-one`)
+  - Use kebab-case, short enough to read in a branch list, descriptive
+    enough that a teammate knows what it's for without opening it.
+- One feature or fix per branch. Don't bundle unrelated changes.
+
 ## Working conventions (for both devs + Claude)
 
 - This is a scaffold. No habit-tracking, gacha, or ad logic exists yet —
