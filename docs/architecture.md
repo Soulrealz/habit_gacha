@@ -9,23 +9,24 @@ just where we record what's true right now.
 (protein goal, studying, etc.) earns summoning tickets. Tickets are spent
 pulling for pixel-art/anime-style character sprites to collect.
 
-## Current state (scaffold only)
+## Current state (foundation written, never run)
 
 - Expo (managed workflow) + React Native + TypeScript
-- No habit tracking, gacha, or ad logic implemented yet — blank app shell only
-- Storage engine not yet chosen (candidates: expo-sqlite, AsyncStorage) —
-  decide when habit-tracking data model work starts
-- Ad SDK not yet chosen (candidates: AdMob via expo, react-native-google-mobile-ads)
-  — decide when monetization work starts
+- **Foundation layer exists** on `feat/foundation`, uncommitted: SQLite schema and
+  migration runner, shared types, tunable config, the ticket ledger, and a
+  three-tab navigation shell. Statically verified only — see
+  `docs/status/OPEN-ITEMS.md` for what remains unconfirmed.
+- No habit tracking, gacha, or ad logic yet. Those are the two vertical plans.
 
-## Open decisions (fill in as they're made)
+## Open decisions
 
-| Decision              | Status    | Notes                                                         |
-| --------------------- | --------- | ------------------------------------------------------------- |
-| Local storage engine  | Undecided | SQLite likely, for structured habit/streak/collection queries |
-| Ad SDK                | Undecided | Rewarded ads for extra pulls / streak saves                   |
-| Navigation            | Undecided | Likely expo-router once there's more than one screen          |
-| Sprite asset pipeline | Undecided | Bulk AI-generated sprites, bundled locally                    |
+| Decision              | Status                        | Notes                                                                    |
+| --------------------- | ----------------------------- | ------------------------------------------------------------------------ |
+| Local storage engine  | **Decided: `expo-sqlite`**    | Append-only ticket ledger + habit logs; see spec §4                      |
+| Navigation            | **Decided: React Navigation** | Bottom tabs. expo-router rejected — the blank template has no `app/` dir |
+| Ad SDK                | Undecided                     | Rewarded ads for extra pulls / streak saves; deferred past v1            |
+| Sprite asset pipeline | Undecided                     | Bulk AI-generated sprites, bundled locally; the gacha vertical owns this |
+| Duplicate economy     | Undecided                     | What 3★ dupes convert into. `owned_characters.copies` already records it |
 
 ## Non-goals for now
 

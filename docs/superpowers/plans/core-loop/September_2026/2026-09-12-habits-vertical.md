@@ -298,6 +298,13 @@ Native module, so no unit tests here — the rules it depends on are already tes
 
 Note the ordering: the row is written and `completed_at` is set inside the transaction, then `awardTickets` is called after it commits. `awardTickets` opens its own transaction, and nesting transactions in SQLite would fail.
 
+Use `withExclusiveTransactionAsync`, never `withTransactionAsync` — the latter is a plain
+`BEGIN`/`COMMIT` on the shared connection that its own docs describe as "not exclusive and can be
+interrupted by other async queries", so overlapping calls corrupt each other's transactions.
+`TodayScreen`'s quick-add buttons make overlapping calls easy: two fast `+5` taps are exactly the
+race. Every query inside the callback must run on `txn`, not `db` — `txn` is a separate connection
+holding the write lock, so a stray `db` call inside the callback deadlocks.
+
 `capReached` is derived from `shouldAward(...) === true` but `ticketsAwarded === 0` — that combination means the habit genuinely completed but the daily cap clipped the award to nothing, which is exactly what the UI needs to explain to the user.
 
 Create `src/services/habits/index.ts`:
@@ -357,8 +364,8 @@ export async function adjustHabitCount(habit: Habit, delta: number): Promise<Adj
   let newCount = 0;
   let justCompleted = false;
 
-  await db.withTransactionAsync(async () => {
-    const row = await db.getFirstAsync<HabitLogRow>(
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    const row = await txn.getFirstAsync<HabitLogRow>(
       'SELECT habit_id, log_date, count, completed_at FROM habit_logs WHERE habit_id = ? AND log_date = ?',
       habit.id,
       logDate,
@@ -375,7 +382,7 @@ export async function adjustHabitCount(habit: Habit, delta: number): Promise<Adj
         ? new Date().toISOString()
         : null;
 
-    await db.runAsync(
+    await txn.runAsync(
       `INSERT INTO habit_logs (habit_id, log_date, count, completed_at)
        VALUES (?, ?, ?, ?)
        ON CONFLICT (habit_id, log_date)
@@ -548,10 +555,13 @@ git commit -m "feat: add habit row component with quick-add buttons"
 
 The ticket balance is re-read after every adjustment rather than tracked locally, so it cannot drift from the ledger. `capReached` drives the banner that tells the user why a completed habit paid nothing.
 
+It refreshes with `useFocusEffect`, not `useEffect`. Tickets are spent on the Summon tab, and switching tabs does not remount a screen — with `useEffect` the balance shown here would stay stale after a pull.
+
 Replace the entire contents of `src/screens/TodayScreen.tsx`:
 
 ```tsx
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { HabitRow } from '../components/HabitRow';
 import { GYM_HABITS } from '../data/habits';
@@ -570,9 +580,11 @@ export function TodayScreen() {
     setBalance(nextBalance);
   }, []);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
 
   const handleAdd = useCallback(
     async (habit: Habit, amount: number) => {

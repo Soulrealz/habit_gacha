@@ -408,6 +408,12 @@ Native module, so no unit tests — the device walkthrough in Task 5 is the gate
 
 The upsert increments `copies` for a duplicate and leaves `first_obtained_at` untouched, which is what makes the deferred duplicate economy possible later without a migration.
 
+Use `withExclusiveTransactionAsync`, never `withTransactionAsync` — the latter is a plain
+`BEGIN`/`COMMIT` on the shared connection that its own docs describe as "not exclusive and can be
+interrupted by other async queries", so overlapping calls corrupt each other's transactions. Every
+query inside the callback must run on `txn`, not `db` — `txn` is a separate connection holding the
+write lock, so a stray `db` call inside the callback deadlocks.
+
 Create `src/services/collection/index.ts`:
 
 ```ts
@@ -440,19 +446,19 @@ export async function recordCharacter(characterId: string): Promise<boolean> {
   const db = getDatabase();
   let isNew = false;
 
-  await db.withTransactionAsync(async () => {
-    const existing = await db.getFirstAsync<{ copies: number }>(
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    const existing = await txn.getFirstAsync<{ copies: number }>(
       'SELECT copies FROM owned_characters WHERE character_id = ?',
       characterId,
     );
 
     if (existing) {
-      await db.runAsync(
+      await txn.runAsync(
         'UPDATE owned_characters SET copies = copies + 1 WHERE character_id = ?',
         characterId,
       );
     } else {
-      await db.runAsync(
+      await txn.runAsync(
         'INSERT INTO owned_characters (character_id, copies, first_obtained_at) VALUES (?, 1, ?)',
         characterId,
         new Date().toISOString(),
@@ -502,7 +508,7 @@ This is the only place in the vertical that calls `getGachaConfig()` and `Math.r
 
 Three notes on the ordering, all of which come from spec §9.1:
 
-The `inFlight` module guard rejects a second concurrent call outright. `spendTicket` is what actually prevents a double spend — it reads the balance and inserts its debit inside one transaction, and SQLite serialises transactions, so two concurrent calls against a balance of 1 cannot both succeed.
+The `inFlight` module guard rejects a second concurrent call outright. `spendTicket` is what actually prevents a double spend — it reads the balance and inserts its debit inside one **exclusive** transaction, so two concurrent calls against a balance of 1 cannot both succeed. That guarantee depends on it using `withExclusiveTransactionAsync`; plain `withTransactionAsync` would not provide it.
 
 Spend, roll, and persist deliberately do not share a single transaction, because `spendTicket` owns its own and SQLite cannot nest them. The residual risk is a crash between spending and persisting, which can lose a ticket but can never duplicate a character or grant one for free.
 
@@ -614,10 +620,13 @@ git commit -m "feat: add summon service wiring spend, roll, and collection"
 
 The button is disabled both while a pull is in flight and when the balance is zero. The rarity colour gives the 5★ its own visual weight — this is the payoff moment the whole app exists to deliver, and it is worth revisiting in Phase 2 with real animation.
 
+The balance is read with `useFocusEffect`, not `useEffect`. Tickets are earned on the Today tab, and switching tabs does not remount a screen — with `useEffect` the balance would still read 0 after earning one, and the Summon button would stay disabled. That is exactly step 2 of the walkthrough below.
+
 Replace the entire contents of `src/screens/SummonScreen.tsx`:
 
 ```tsx
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { RARITY_COLOURS } from '../data/characters';
 import { performSummon } from '../services/gacha';
@@ -641,9 +650,11 @@ export function SummonScreen() {
     setBalance(await getBalance());
   }, []);
 
-  useEffect(() => {
-    refreshBalance();
-  }, [refreshBalance]);
+  useFocusEffect(
+    useCallback(() => {
+      refreshBalance();
+    }, [refreshBalance]),
+  );
 
   const handleSummon = useCallback(async () => {
     setPulling(true);
@@ -885,7 +896,9 @@ Expected: all clean.
 npx expo start
 ```
 
-Note that `__DEV__` is true here, so `DEV_GACHA_CONFIG` applies: a 25% 5★ rate, pity at 5, and a ticket cap of 50. That is deliberate — it makes this walkthrough take a minute instead of an hour.
+Note that `__DEV__` is true here, so `DEV_GACHA_CONFIG` applies: a 25% 5★ rate and pity at 5. That is deliberate — it makes this walkthrough take a minute instead of an hour.
+
+The dev override deliberately does **not** raise `dailyTicketCap`, because the habits vertical's own walkthrough needs the 5/day cap to actually bind in a dev build. If you need more than five pulls in one sitting to reach step 5, temporarily raise `dailyTicketCap` in `src/config/gacha.ts` as a local, uncommitted edit and revert it before opening your PR. With the dev pity threshold of 5, step 6's GUARANTEED badge is reachable inside a single day's five tickets.
 
 Walk this exact sequence on a phone or emulator:
 

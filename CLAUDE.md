@@ -4,13 +4,24 @@ Gacha-style habit tracker. See `docs/architecture.md` for the current state
 and open decisions, `docs/decisions.md` for the decision log. This file is
 conventions only — check those two before assuming something is decided.
 
+**The code in `src/` has never been run on a device.** Read the open-items file
+imported below before telling anyone the app works, and before building on the
+foundation layer.
+
+@docs/status/OPEN-ITEMS.md
+
 @AGENTS.md
 
 ## Stack
 
 - Expo (managed workflow), React Native, TypeScript (strict mode)
-- Local-first: no backend. Storage engine (SQLite vs AsyncStorage) is not
-  yet chosen — see `docs/architecture.md`.
+- Local-first: no backend. Storage is **SQLite via `expo-sqlite`** — decided and
+  implemented in the foundation layer (`src/services/db/`).
+- Every tunable game-balance number lives in `src/config/gacha.ts` and nowhere
+  else. Never hard-code a rate, pity threshold, or daily cap.
+- Database writes that read-then-write must use `withExclusiveTransactionAsync`
+  with all queries on the `txn` handle. Never `withTransactionAsync` — see the
+  open-items file for why.
 - Monetization: rewarded ads (extra pulls, streak saves). Not yet wired in.
 
 ## Code conventions
@@ -43,7 +54,7 @@ subfolders — don't pre-create empty feature folders.
 
 ## Git workflow
 
-- `main` is the trunk. Never commit directly to it — branch, then PR/merge back.
+- `master` is the trunk. Never commit directly to it — branch, then PR/merge back.
 - Branch naming:
   - New features: `feat/<short-description>` (e.g. `feat/gacha-pull-animation`)
   - Bug fixes: `bug/<short-description>` (e.g. `bug/streak-reset-off-by-one`)
