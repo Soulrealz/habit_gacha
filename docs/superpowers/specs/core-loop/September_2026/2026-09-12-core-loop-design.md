@@ -326,9 +326,25 @@ makes the rules testable at all.
 1. **Double-spend on summon.** Rapid taps could spend one ticket twice or
    produce two rolls from one spend. Three layers address this:
    - `spendTicket` reads the balance and inserts its debit row inside one
-     transaction. SQLite serialises transactions, so two concurrent calls
-     against a balance of 1 cannot both succeed — the second reads 0 and
-     returns `false`. This is what actually prevents a double spend.
+     **exclusive** transaction — `withExclusiveTransactionAsync`, never
+     `withTransactionAsync`. Two concurrent calls against a balance of 1
+     cannot both succeed: the second reads 0 and returns `false`. This is
+     what actually prevents a double spend.
+
+     **`withTransactionAsync` does not provide this and must not be used
+     anywhere in this project.** It is a plain `BEGIN`/`COMMIT` on the
+     shared connection, and its own documentation states it "is not
+     exclusive and can be interrupted by other async queries". Under
+     overlapping calls the second `BEGIN` is rejected, its error handler
+     issues a `ROLLBACK` that aborts the _first_ caller's transaction, and
+     that caller's write then lands unprotected — losing the guarantee and
+     raising "cannot commit - no transaction is active".
+
+     Every query inside an exclusive transaction must run on the callback's
+     `txn` object, not on the outer `db` handle. `txn` is a separate
+     connection holding the write lock, so a stray `db` call inside the
+     callback deadlocks.
+
    - The summon button disables while a pull is in flight.
    - A module-level in-flight guard in the summon service rejects a second
      concurrent call even if the UI guard is bypassed.
