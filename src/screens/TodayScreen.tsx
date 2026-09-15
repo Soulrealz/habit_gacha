@@ -80,8 +80,13 @@ export function TodayScreen() {
       rolloverPending.current = false;
       setNotice(null);
 
+      const previousCount = logs?.[habit.id]?.count ?? 0;
+
       try {
         const result = await adjustHabitCount(habit, amount);
+
+        // Crossing up through the target, whether or not it pays out this time.
+        const justCrossed = previousCount < habit.target && result.count >= habit.target;
 
         if (result.capReached && result.ticketsAwarded === 0) {
           setNotice({
@@ -93,6 +98,13 @@ export function TodayScreen() {
           const clipped = result.capReached ? ' (daily cap reached)' : '';
           setNotice({
             text: `${habit.name} complete! +${result.ticketsAwarded} ticket${plural}${clipped}`,
+            tone: 'info',
+          });
+        } else if (justCrossed) {
+          // Now that the tick tracks live progress, a habit can be re-completed after
+          // being edited back down. Say why it paid nothing, or it reads as a bug.
+          setNotice({
+            text: `${habit.name} complete — today’s ticket is already earned.`,
             tone: 'info',
           });
         }
@@ -109,7 +121,7 @@ export function TodayScreen() {
         setBusy(false);
       }
     },
-    [busy, refresh],
+    [busy, logs, refresh],
   );
 
   if (!logs) {
@@ -143,7 +155,11 @@ export function TodayScreen() {
               key={habit.id}
               habit={habit}
               count={log?.count ?? 0}
-              completed={Boolean(log?.completedAt)}
+              // Live progress, NOT `completedAt`. That column means "today's ticket is
+              // already paid" and is deliberately never cleared, so rendering the tick
+              // from it left a ✓ sitting above a count that had dropped back below the
+              // target. Progress is editable; earnings are final.
+              completed={(log?.count ?? 0) >= habit.target}
               disabled={busy}
               onAdd={(amount) => handleAdd(habit, amount)}
             />

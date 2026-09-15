@@ -28,9 +28,10 @@ pulling for pixel-art/anime-style character sprites to collect.
 - `TodayScreen` watches the local date through `useCurrentDate` (`src/lib/`), so crossing
   midnight resets the day's counts on screen with a notice rather than silently, after
   the user's next tap.
-- Everything above is statically verified only. Nothing has ever run on a device —
-  see `docs/status/OPEN-ITEMS.md` for what remains unconfirmed, including a
-  foundation-level `busy_timeout` gap that both verticals work around locally.
+- **The loop has been run on a physical Android phone** (2026-09-15, Expo Go): habit
+  logging, ticket earning, the daily cap, summoning and duplicates all confirmed by
+  hand. Cold-restart persistence, rapid-tap concurrency and midnight rollover are still
+  unconfirmed — see `docs/status/OPEN-ITEMS.md`.
 
 ## Open decisions
 

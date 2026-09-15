@@ -142,7 +142,10 @@ describe('Today screen walkthrough', () => {
     expect(text).toContain('🎟 1');
   });
 
-  it('step 4: dropping back below the target keeps the tick and the ticket', async () => {
+  // Amended 2026-09-15 after the first device run. The plan's step 4 originally expected
+  // the ✓ to stay as proof that awards are not clawed back; it conflated the two. The
+  // earned ticket is what must not be clawed back. The tick is live progress.
+  it('step 4: dropping back below the target keeps the ticket but not the tick', async () => {
     const renderer = await renderAndSettle(<TodayScreen />);
     await press(renderer, add(10));
 
@@ -151,7 +154,7 @@ describe('Today screen walkthrough', () => {
 
     const text = textContent(renderer);
     expect(text).toContain('8 / 10 reps');
-    expect(text).toContain('Pull-ups ✓');
+    expect(text).not.toContain('Pull-ups ✓');
     expect(text).toContain('🎟 1');
   });
 
@@ -257,5 +260,77 @@ describe('Today screen midnight rollover', () => {
     const text = textContent(renderer);
     expect(text).toContain('5 / 10 reps');
     expect(text).not.toContain('It’s a new day');
+  });
+});
+
+// Found on the first device run: the tick stayed on after editing the count back down.
+// `completed_at` means "today's ticket is paid" and is deliberately never cleared, so
+// the tick must come from live progress instead.
+describe('Today screen tick mark tracks live progress', () => {
+  it('drops the tick when the count is edited back below the target', async () => {
+    const renderer = await renderAndSettle(<TodayScreen />);
+    await press(renderer, add(10));
+    expect(textContent(renderer)).toContain('Pull-ups ✓');
+
+    await press(renderer, remove(1));
+
+    const text = textContent(renderer);
+    expect(text).toContain('9 / 10 reps');
+    expect(text).not.toContain('Pull-ups ✓');
+  });
+
+  it('brings the tick back when the target is reached again', async () => {
+    const renderer = await renderAndSettle(<TodayScreen />);
+    await press(renderer, add(10));
+    await press(renderer, remove(1));
+    expect(textContent(renderer)).not.toContain('Pull-ups ✓');
+
+    await press(renderer, add(1));
+
+    expect(textContent(renderer)).toContain('Pull-ups ✓');
+  });
+
+  it('keeps the earned ticket when the tick goes away — progress is editable, earnings are final', async () => {
+    const renderer = await renderAndSettle(<TodayScreen />);
+    await press(renderer, add(10));
+    expect(store.ledger.reduce((sum, row) => sum + row.delta, 0)).toBe(1);
+
+    await press(renderer, remove(1));
+    await press(renderer, remove(1));
+
+    expect(textContent(renderer)).not.toContain('Pull-ups ✓');
+    expect(store.ledger.reduce((sum, row) => sum + row.delta, 0)).toBe(1);
+  });
+
+  it('pays nothing for re-completing, and says why rather than looking broken', async () => {
+    const renderer = await renderAndSettle(<TodayScreen />);
+    await press(renderer, add(10));
+    await press(renderer, remove(1));
+
+    await press(renderer, add(1));
+
+    const text = textContent(renderer);
+    expect(text).toContain('today’s ticket is already earned');
+    expect(store.ledger.reduce((sum, row) => sum + row.delta, 0)).toBe(1);
+  });
+
+  it('does not nag on every increment above the target', async () => {
+    const renderer = await renderAndSettle(<TodayScreen />);
+    await press(renderer, add(10));
+
+    await press(renderer, add(1));
+
+    expect(textContent(renderer)).not.toContain('already earned');
+  });
+
+  it('still says nothing about earnings for an ordinary increment below the target', async () => {
+    const renderer = await renderAndSettle(<TodayScreen />);
+
+    await press(renderer, add(5));
+
+    const text = textContent(renderer);
+    expect(text).toContain('5 / 10 reps');
+    expect(text).not.toContain('already earned');
+    expect(text).not.toContain('complete');
   });
 });

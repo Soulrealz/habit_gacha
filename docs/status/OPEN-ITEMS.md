@@ -5,47 +5,36 @@ Last updated: 2026-09-15. This file is auto-loaded into every Claude session via
 
 ## Where the project actually stands
 
-The foundation layer is **merged into `master`** (PR #1): the SQLite schema and migration
-runner, shared types, tunable config, the ticket ledger, and a three-tab navigation
-shell. It typechecks, lints, passes 10/10 unit tests, and produces a valid Android
-bundle.
+🎉 **The app has been run.** 2026-09-15, by the repo owner, on a physical Android phone
+via Expo Go. It was the first launch in the project's history, and the core loop worked.
 
-But **it has still never been run.** No human or agent has launched this app. Merged is
-not the same as verified — do not describe the foundation as "working", "tested", or
-"verified" to anyone. It is written, statically checked, and merged.
+Confirmed by hand on device:
 
-## ⚠️ Still unconfirmed — nobody has run this app
+- It gets past the spinner — so `expo-sqlite` loads and the migrations apply.
+- The tabs render and navigate.
+- Quick-add `+` and `−` work on the Today screen.
+- Summoning works, and duplicates occur.
+- The daily ticket cap binds — you cannot earn unlimited tickets in a day.
 
-The machine this was built on has no Android SDK, emulator, or device. Each of these is
-unverified and could be broken. You do not have to clear them before starting a vertical,
-but you will hit them the moment you first launch the app:
+The follow-up checks — cold-restart persistence, rapid-tap concurrency and midnight
+rollover — were cleared in the same session. Everything here was previously only
+statically verified; it no longer needs that caveat.
 
-1. **The native `expo-sqlite` module actually loads.** A successful Metro bundle does
-   not prove this. If it fails, `initDatabase()` rejects and the app shows its error
-   screen instead of content.
-2. **The database initialises and migrations apply.** Launch, confirm you get past the
-   spinner, then fully close and reopen — state must survive.
-3. **The three bottom tabs render and navigate.**
-4. **Concurrency under rapid taps.** This one matters most — see below.
+## ✅ Device checks: all clear
 
-### Why item 4 deserves real attention
+Cleared by the repo owner on 2026-09-15, same session as the first run:
 
-The original implementation used `db.withTransactionAsync`, believing it serialised
-concurrent callers. It does not. Expo's own source documents it as _"not exclusive and
-can be interrupted by other async queries"_ — it is a bare `BEGIN`/`COMMIT` on a shared
-connection. With overlapping calls, the second caller's `BEGIN` is rejected, its error
-handler's `ROLLBACK` aborts the **first** caller's transaction, and that caller's write
-then commits unprotected.
+1. **State survives a cold restart** — counts, ✓ marks, balance and collection all
+   persisted. This also proves the migrations applied cleanly, which nothing else can.
+2. **Concurrency under rapid taps** — no wrong counts, no double pulls, no silent no-ops.
+   The write queue held on real SQLite, having only ever been measured against
+   `node:sqlite` before this.
+3. **Midnight rollover** — reported fine. Worth one more look after an actual midnight
+   with the app left open, since that is the only way the timer path proves itself; the
+   `AppState` path is what a next-morning reopen exercises.
 
-`withExclusiveTransactionAsync` was the first fix. It was necessary but **not
-sufficient** — it does not serialise callers either. It opens a new connection per call
-and issues a plain **deferred** `BEGIN`, so two overlapping read-then-writes both take a
-read snapshot and the loser's upgrade to a write fails with "database is locked".
-
-**That is now fixed properly (2026-09-15) — see `withWriteTransaction` below.** The fix
-has still never executed on a device, so item 4 stays open: when you first run the app,
-deliberately spam the quick-add and summon buttons and confirm the ticket balance never
-goes wrong.
+`docs/status/DEVICE-RUN-CHECKLIST.md` remains the ordered script for re-running the full
+pass after significant changes.
 
 ### ✅ Resolved: every write now goes through `withWriteTransaction`
 
@@ -97,22 +86,16 @@ Consequences worth knowing:
 
 ## Next steps
 
-**Both verticals are written** (2026-09-15), plus the write-serialisation fix above, the
-screen tests, and the midnight-rollover fix. Everything through the screen tests is
-committed on `master`; the rollover fix sits **uncommitted in the working tree**.
-Together they pass 139/139 tests, `tsc --noEmit`, `expo lint`, and an Android export.
+**v1 is built and the loop works on a real phone.** Both verticals, the write
+serialisation, the screen tests, the midnight-rollover fix and CI are all on `master`,
+passing 144/144 tests, `tsc --noEmit`, `expo lint`, `expo-doctor` 21/21 and an Android
+export — and the core loop has now been played by hand.
 
-**Nothing has been run on a device.** Both plans end in a device walkthrough, and
-**11 of those 15 steps are now covered by screen tests** that drive the real screens
-against in-memory storage, with the real rules (`resolveAdjust`, `clampAward`, `rollOne`)
-underneath. What is left needs hardware:
+The spec says v1 exists to prove exactly one thing: **that the loop is satisfying.** That
+question is now answerable from evidence rather than from a bundle.
 
-- Habits (Task 5, Step 3): steps 1–6 ✅ tested. **Step 7, cold restart** — device only.
-- Gacha (Task 6, Step 3): steps 1–6 and 8 ✅ tested. **Step 7, cold restart** — device only.
-
-Do not read that as "mostly verified". The screen tests cannot touch the four checks
-above — the native module loading, migrations applying, state surviving a restart, or
-real SQLite concurrency. They are a complement to the device pass, not a substitute.
+What v2 turns on is no longer whether the machinery works. It is what the pulls are
+_for_ — see "Design questions" below.
 
 Decisions taken while building each, with the alternatives weighed:
 
@@ -122,24 +105,8 @@ Decisions taken while building each, with the alternatives weighed:
 - `docs/status/2026-09-15-screen-tests-decisions.md`
 - `docs/status/2026-09-15-midnight-rollover-decisions.md`
 
-That leaves, and **both need something no machine here has** — a device, or an artist:
-
-1. **The first device run.** It exercises the whole core loop — earn a ticket on Today,
-   spend it on Summon, see it in Collection — clearing the four checks above and the two
-   cold-restart steps at once. Still the highest-value item by a distance.
-
-   **Everything that could be prepared for it has been.** Do not re-derive the steps:
-   `docs/status/DEVICE-RUN-CHECKLIST.md` is the single ordered script, merging the four
-   checks above with both walkthroughs and a cross-vertical race none of them covered.
-   `npx expo-doctor` passes 21/21.
-
-2. Real character art. The nine sprites in `assets/characters/` are now **generated
-   placeholders** — each character's initial on its rarity colour, from
-   `scripts/generate-placeholder-sprites.mjs` — rather than nine identical copies of the
-   splash icon. That was a blocker for the device run rather than a cosmetic point: the
-   Collection walkthrough asks you to confirm the pulled character is in colour while the
-   rest are silhouettes, which is uncheckable when every image is the same. Real art drops
-   in at the same paths with no code change; delete the script when it does.
+**`docs/next-steps.md` is the forward-looking plan** — read that for what to do next and
+why, in order. This file is the status record.
 
 **CI now guards the foundation.** `.github/workflows/ci.yml` runs the typecheck, lint,
 `jest --ci` and an Android bundle on every push and PR to `master`. Every step was
@@ -151,11 +118,66 @@ boundary — the "Global Constraints" section of each plan lists exactly what it
 Anything both verticals need belongs in the foundation, which means it needs a
 conversation with the other developer first, not a unilateral edit.
 
-**Expect the first device run to surface foundation bugs, not just your own.** Each
-vertical plan ends in a device walkthrough, and whoever gets there first is also running
-the foundation for the first time ever. If the app dies at the spinner or the error
-screen, suspect `expo-sqlite` loading or migrations before you suspect your vertical.
-Clear the four checks above when you get there, then delete that section from this file.
+**The first device run surfaced exactly one defect, and it was cosmetic** — the tick
+mark, since fixed. The foundation came up clean on first launch. If a later run dies at
+the spinner or the error screen, still suspect `expo-sqlite` loading or migrations before
+you suspect your vertical.
+
+## Design questions raised by the first device run
+
+All of these came out of playing the loop on 2026-09-15. None is a bug in the machinery;
+they are the questions v1 deliberately deferred, now arriving on schedule.
+
+### The tick mark does not come back off (small, fix first)
+
+Complete a habit, tap `−` back below the target, and the ✓ stays while the count drops.
+
+**Cause.** `completed_at` is doing two jobs at once: it is both "this habit is done" (what
+the tick renders from) and "today's ticket has already been paid" (the award-once guard).
+`TodayScreen` renders the tick from `Boolean(log.completedAt)`, and the column is
+deliberately never cleared so the ticket cannot be farmed by crossing the target twice.
+
+**Fix.** Separate the two meanings, which needs **no migration and no schema change**:
+
+- `completed_at` keeps only its award-once job. Nothing about the economy changes.
+- The tick renders from live progress — `count >= target` — so it appears and disappears
+  with the count.
+
+The ticket stays paid, because it may already have been spent. That asymmetry is correct
+and worth stating in the UI rather than hiding: **progress is editable, earnings are
+final.**
+
+### What duplicates are worth
+
+Pulling a character you already own currently increments `copies` and shows `×2`. Nothing
+consumes it.
+
+`owned_characters.copies` has tracked duplicates since the first migration precisely so
+this could be designed later without one — that decision is now paying off.
+
+### What the collection is ultimately for
+
+The open question underneath duplicates, and the bigger of the two. Right now the reward
+for habits is a picture. Whether that sustains depends on what the pictures are _for_,
+and the answer determines what duplicates convert into. **Design these two together** —
+duplicates without a purpose is just a counter that goes up.
+
+### Streaks
+
+Wanted: consecutive days logged in, and/or consecutive days the ticket cap was maxed.
+
+Deliberately out of scope for v1. Worth noting it is not independent of the two questions
+above: a streak that pays tickets multiplies the economy, so its design depends on what
+tickets ultimately buy. Sequence it after them.
+
+### A screen explaining the rules
+
+Wanted: somewhere that explains the pull rates, the pity guarantee and the daily cap.
+
+The app currently teaches the 5/day cap only by hitting it. Self-contained, no schema, no
+economy interaction — it can be built any time. One constraint: every number it displays
+must be read from `src/config/gacha.ts`, never retyped into the copy, or the docs and the
+behaviour will drift the first time a rate is tuned.
 
 ## Decisions made under uncertainty — revisit if you disagree
 
@@ -185,3 +207,4 @@ See `docs/status/2026-09-15-midnight-rollover-decisions.md`.
 - Foundation plan as executed: `docs/superpowers/plans/core-loop/September_2026/2026-09-12-foundation.md`
 - Architecture state and open technical decisions: `docs/architecture.md`
 - Decision log: `docs/decisions.md`
+- **Forward plan: `docs/next-steps.md`**

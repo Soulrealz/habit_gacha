@@ -6,14 +6,14 @@ payoff.
 
 Expo + React Native + TypeScript, fully local — SQLite on device, no backend, no account.
 
-> ## ⚠️ This app has never been run
+> ## ✅ The loop works on a real phone
 >
-> Every line below is written, typechecked, linted, unit-tested and bundled. **None of it
-> has executed on a phone or emulator.** Do not describe it as "working", "tested", or
-> "verified" to anyone — statically checked and merged is a different claim.
+> First run: 2026-09-15, a physical Android phone via Expo Go. Habit logging, ticket
+> earning, the daily cap, summoning and duplicates were all confirmed by hand.
 >
-> If you have a device, `docs/status/DEVICE-RUN-CHECKLIST.md` is the ordered script for
-> the first run, and it is the most valuable thing anyone can do for this project.
+> Three things are still unconfirmed on device — cold-restart persistence, rapid-tap
+> concurrency, and midnight rollover. See `docs/status/OPEN-ITEMS.md`, which is the file
+> to read before trusting anything in `src/`.
 
 ## Quick start
 
@@ -35,11 +35,11 @@ Formatting is Prettier-owned — don't hand-format.
 
 | Area                                                                  | State                                |
 | --------------------------------------------------------------------- | ------------------------------------ |
-| Foundation — SQLite schema, migrations, ticket ledger, tab navigation | Written, merged                      |
-| Habits — catalog, counter logging, ticket awards, Today screen        | Written, merged                      |
-| Gacha — roll engine with pity, summon, collection, both screens       | Written, merged                      |
+| Foundation — SQLite schema, migrations, ticket ledger, tab navigation | Merged; runs on device               |
+| Habits — catalog, counter logging, ticket awards, Today screen        | Merged; runs on device               |
+| Gacha — roll engine with pity, summon, collection, both screens       | Merged; runs on device               |
 | Character art                                                         | Generated placeholders, not real art |
-| Rewarded ads, streaks, non-gym habits, duplicate economy              | Out of scope for v1                  |
+| Rewarded ads, streaks, non-gym habits, duplicate economy              | Deferred — v2 design                 |
 
 ## How it fits together
 
@@ -76,6 +76,7 @@ which means a conversation first rather than a unilateral edit.
 Start with `CLAUDE.md` (conventions) and `docs/status/OPEN-ITEMS.md` (what is unverified
 right now — read it before trusting anything in `src/`).
 
+- `docs/next-steps.md` — what to do next and why, in order
 - `docs/architecture.md` — current state and open technical decisions
 - `docs/decisions.md` — the decision log, newest first
 - `docs/status/DEVICE-RUN-CHECKLIST.md` — the first-run script

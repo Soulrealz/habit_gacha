@@ -1,12 +1,13 @@
 # Device run — the one checklist
 
-**Nobody has ever launched this app.** This is the ordered script for the first person who
-gets hardware in front of them. It merges the four unconfirmed checks from
-`OPEN-ITEMS.md` with both vertical plans' walkthroughs, so it is one pass instead of
-three, and it is ordered so that a failure tells you where to look.
+**First completed 2026-09-15** — physical Android phone, Expo Go, by the repo owner.
+Everything below passed, including cold-restart persistence and the rapid-tap
+concurrency checks. The only thing it surfaced was the tick mark staying on after a
+count was edited back down, which is now fixed.
 
-Everything below is currently **unverified**. Tick as you go and record what actually
-happened, including the parts that worked.
+Keep this as the ordered re-run script after any significant change. It merges the
+foundation checks with both vertical walkthroughs into one pass, ordered so that a
+failure tells you where to look.
 
 ---
 
@@ -51,7 +52,8 @@ hold against real SQLite. Step 7 is the one nothing has ever tested.
 - [ ] 2. Tap `+5` on Pull-ups twice → `10 / 10 reps`, a ✓, full bar, notice
       "Pull-ups complete! +1 ticket", balance `🎟 1`.
 - [ ] 3. Tap `+1` again → count 11, balance **stays** 1. (Award-once.)
-- [ ] 4. Tap `−1` until below 10 → the ✓ **stays** and balance stays 1. (No clawback.)
+- [ ] 4. Tap `−1` until below 10 → the ✓ **goes away** (live progress) but the balance
+      stays 1. (Progress is editable; earnings are final.)
 - [ ] 5. Complete four more habits → balance reaches `🎟 5`.
 - [ ] 6. Complete a sixth → it shows complete, the notice says the cap is hit, balance
       stays `🎟 5`. (Cap clipping.)

@@ -5,6 +5,25 @@ re-litigated or forgotten. Newest at top.
 
 ---
 
+### 2026-09-15 — The ✓ tracks live progress, not the award
+
+- **Decision**: `TodayScreen` renders the tick from `count >= target` rather than from
+  `completed_at`. Re-completing a habit that already paid out now says
+  "today's ticket is already earned" instead of silently doing nothing.
+- **Why**: Found on the first device run — complete a habit, edit the count back down,
+  and the ✓ stayed above a count below the target. `completed_at` was doing two jobs:
+  "this habit is done" and "today's ticket is paid". It is deliberately never cleared so
+  the award cannot be farmed by crossing the target twice, which made it wrong as a
+  display source.
+- **Consequence**: **no schema change and no migration.** `completed_at` keeps only its
+  award-once job; the economy is untouched. The asymmetry is intentional and now stated
+  in the UI: progress is editable, earnings are final — the ticket may already be spent.
+- **Amended**: the habits walkthrough's step 4 previously asserted the ✓ _stays_ as proof
+  that awards are not clawed back. It conflated the two meanings. The earned ticket is
+  what must not be clawed back; the tick is live progress. The device checklist and the
+  screen test were both corrected.
+- **Status**: Unit-tested, 6 new tests. Not yet re-checked on device.
+
 ### 2026-09-15 — A summon is one transaction
 
 - **Decision**: `performSummon` runs spend, roll, grant and pity inside a single
