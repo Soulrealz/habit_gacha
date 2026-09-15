@@ -5,6 +5,25 @@ re-litigated or forgotten. Newest at top.
 
 ---
 
+### 2026-09-15 — Placeholder sprites are generated, not copied
+
+- **Decision**: `assets/characters/` holds nine generated PNGs — each character's initial
+  on its rarity colour — produced by `scripts/generate-placeholder-sprites.mjs`, replacing
+  nine identical copies of `splash-icon.png`.
+- **Why**: Not cosmetic. The gacha device walkthrough asks the tester to confirm that the
+  pulled character shows in colour while the other eight are faded silhouettes, and which
+  character a duplicate `×2` belongs to. With nine identical images neither is checkable,
+  so two walkthrough steps could not be completed even once hardware was available.
+- **Decision**: The generator lives in the repo rather than being thrown away, so the
+  placeholders are reproducible and self-evidently placeholders. Its colour table and
+  character list must be kept in step with `src/data/characters.ts`.
+- **Consequence**: Real art still drops in at the same paths with no code change. Delete
+  the script when it does.
+- **Status**: Rendered and visually confirmed; bundle exports clean. **Never run on a
+  device.**
+
+---
+
 ### 2026-09-15 — The Today screen watches the local date
 
 - **Decision**: `useCurrentDate` in `src/lib/` watches for the local date changing via a

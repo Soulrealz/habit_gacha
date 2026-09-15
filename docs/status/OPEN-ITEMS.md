@@ -122,14 +122,24 @@ Decisions taken while building each, with the alternatives weighed:
 - `docs/status/2026-09-15-screen-tests-decisions.md`
 - `docs/status/2026-09-15-midnight-rollover-decisions.md`
 
-That leaves, and **both need something this machine does not have** — a device, or art:
+That leaves, and **both need something no machine here has** — a device, or an artist:
 
 1. **The first device run.** It exercises the whole core loop — earn a ticket on Today,
    spend it on Summon, see it in Collection — clearing the four checks above and the two
    cold-restart steps at once. Still the highest-value item by a distance.
-2. Real character art. All nine sprites in `assets/characters/` are copies of
-   `splash-icon.png`, sitting at their final paths so dropping real PNGs over them
-   needs no code change.
+
+   **Everything that could be prepared for it has been.** Do not re-derive the steps:
+   `docs/status/DEVICE-RUN-CHECKLIST.md` is the single ordered script, merging the four
+   checks above with both walkthroughs and a cross-vertical race none of them covered.
+   `npx expo-doctor` passes 21/21.
+
+2. Real character art. The nine sprites in `assets/characters/` are now **generated
+   placeholders** — each character's initial on its rarity colour, from
+   `scripts/generate-placeholder-sprites.mjs` — rather than nine identical copies of the
+   splash icon. That was a blocker for the device run rather than a cosmetic point: the
+   Collection walkthrough asks you to confirm the pulled character is in colour while the
+   rest are silhouettes, which is uncheckable when every image is the same. Real art drops
+   in at the same paths with no code change; delete the script when it does.
 
 The verticals are designed to share no files. Stay inside your plan's stated file
 boundary — the "Global Constraints" section of each plan lists exactly what it owns.
