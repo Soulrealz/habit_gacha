@@ -5,6 +5,24 @@ re-litigated or forgotten. Newest at top.
 
 ---
 
+### 2026-09-15 — Screen tests are part of v1 after all
+
+- **Decision**: The three screens and `HabitRow` are covered by `react-test-renderer`
+  tests that drive both vertical plans' device walkthroughs against in-memory storage.
+  This reverses the spec's §8 call that "React Native component tests are deliberately
+  not part of v1 — low value at this stage."
+- **Why**: That call assumed a device would be available for the manual pass instead. One
+  never was — every walkthrough is still unrun, weeks in. Screen tests turned out to be
+  the only way to exercise them at all, and they cover 11 of the 15 steps.
+- **Decision**: Only the SQLite layer is faked. The Today walkthrough runs through the
+  real `resolveAdjust` and `clampAward`; the Summon walkthrough through the real
+  `rollOne`/`pickCharacter` with a seeded RNG. A mock that re-implemented the rules would
+  only be testing itself.
+- **Consequence**: `react-test-renderer` already ships with `jest-expo`, so no runtime
+  dependency was added; `@types/react-test-renderer` was added as a devDependency.
+- **Status**: 121/121 tests passing. **Still never run on a device** — these complement
+  the device pass, they do not replace it.
+
 ### 2026-09-15 — All database writes go through one in-process queue
 
 - **Decision**: `withWriteTransaction` in `src/services/db` is the only supported way to

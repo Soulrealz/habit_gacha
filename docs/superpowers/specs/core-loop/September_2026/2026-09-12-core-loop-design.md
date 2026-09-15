@@ -314,9 +314,25 @@ to be verified on device.
   already-completed guard.
 - **Date helper** (`lib/date.ts`): local-date formatting, including a case
   that would break under a naive UTC implementation.
-- **Database wrappers and screens:** manual device testing. React Native
-  component tests are deliberately not part of v1 — low value at this
-  stage.
+- **Database wrappers:** manual device testing. They are deliberately thin
+  for exactly this reason.
+- **Screens:** originally "deliberately not part of v1 — low value at this
+  stage". **Revised 2026-09-15.** That judgement assumed a device would be
+  available to do the manual pass instead, and one never was: every
+  walkthrough in both vertical plans is still unrun. Screen tests turned out
+  to be the only way to exercise the walkthroughs at all, so they are now
+  part of v1 — `react-test-renderer` ships with `jest-expo`, so this cost no
+  new dependency.
+
+  They drive the real screens against in-memory stand-ins for SQLite, with
+  the **real** rules underneath: the Today walkthrough runs through
+  `resolveAdjust` and `clampAward`, and the Summon walkthrough through the
+  actual `rollOne`/`pickCharacter` engine. Only the storage layer is faked.
+
+  This is a complement to the device pass, not a replacement for it. What
+  they cannot cover stays on the device list: that the native module loads,
+  that migrations apply, that state survives a cold restart, and that real
+  concurrent writes behave.
 
 This is the reason the pure/persistent split in §5 matters: it is what
 makes the rules testable at all.
@@ -326,24 +342,46 @@ makes the rules testable at all.
 1. **Double-spend on summon.** Rapid taps could spend one ticket twice or
    produce two rolls from one spend. Three layers address this:
    - `spendTicket` reads the balance and inserts its debit row inside one
-     **exclusive** transaction — `withExclusiveTransactionAsync`, never
-     `withTransactionAsync`. Two concurrent calls against a balance of 1
-     cannot both succeed: the second reads 0 and returns `false`. This is
-     what actually prevents a double spend.
+     transaction, obtained through **`withWriteTransaction`** from
+     `src/services/db`. Two concurrent calls against a balance of 1 cannot
+     both succeed. This is what actually prevents a double spend.
 
-     **`withTransactionAsync` does not provide this and must not be used
-     anywhere in this project.** It is a plain `BEGIN`/`COMMIT` on the
-     shared connection, and its own documentation states it "is not
-     exclusive and can be interrupted by other async queries". Under
-     overlapping calls the second `BEGIN` is rejected, its error handler
-     issues a `ROLLBACK` that aborts the _first_ caller's transaction, and
-     that caller's write then lands unprotected — losing the guarantee and
-     raising "cannot commit - no transaction is active".
+     > **Corrected 2026-09-15.** This section originally said the second of
+     > two concurrent callers "reads 0 and returns `false`", and prescribed
+     > calling `withExclusiveTransactionAsync` directly. Both were wrong, and
+     > the correction is load-bearing enough to record rather than silently
+     > overwrite.
+     >
+     > Neither expo transaction helper serialises callers.
+     > `withExclusiveTransactionAsync` opens a **new connection** per call and
+     > issues a _deferred_ `BEGIN`, so two overlapping read-then-writes each
+     > take a read snapshot and the loser's upgrade to a write fails outright
+     > with "database is locked" — it **throws**, it does not read 0 and
+     > return `false`. Measured: 8 concurrent awards against a cap of 5 left
+     > 7 of 8 throwing and a balance of 1 instead of 5.
+     >
+     > `withWriteTransaction` fixes this by serialising every write in the app
+     > through one in-process queue, with a bounded retry for lock errors.
+     > `PRAGMA busy_timeout` does **not** fix it — SQLite skips the busy
+     > handler for a stale snapshot. See
+     > `docs/status/2026-09-15-write-serialisation-decisions.md` for the
+     > measurements, and `src/services/db/writeQueue.ts` for the code.
+     >
+     > Consequence for every caller: a write can still reject, so each one
+     > needs an error path. Both screens have one.
 
-     Every query inside an exclusive transaction must run on the callback's
-     `txn` object, not on the outer `db` handle. `txn` is a separate
-     connection holding the write lock, so a stray `db` call inside the
-     callback deadlocks.
+     **Neither `withTransactionAsync` nor `withExclusiveTransactionAsync` may
+     be called directly anywhere in this project.** `withTransactionAsync` is
+     a plain `BEGIN`/`COMMIT` on the shared connection, which its own
+     documentation describes as "not exclusive and can be interrupted by other
+     async queries" — under overlapping calls the second `BEGIN` is rejected,
+     its error handler's `ROLLBACK` aborts the _first_ caller's transaction,
+     and that caller's write lands unprotected.
+
+     Every query inside a write transaction must run on the callback's `txn`
+     object, not on the outer `db` handle. `txn` is a separate connection
+     holding the write lock, so a stray `db` call inside the callback
+     deadlocks.
 
    - The summon button disables while a pull is in flight.
    - A module-level in-flight guard in the summon service rejects a second

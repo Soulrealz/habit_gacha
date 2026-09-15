@@ -102,24 +102,33 @@ The habits vertical is committed on `master`; the gacha vertical and the write q
 **uncommitted in the working tree**. Together they pass 89/89 tests, `tsc --noEmit`,
 `expo lint`, and an Android export.
 
-**Nothing has been run.** Each plan ends in a device walkthrough that this machine cannot
-perform, and those are the gates neither vertical has cleared:
+**Nothing has been run on a device.** Both plans end in a device walkthrough, and
+**11 of those 15 steps are now covered by screen tests** that drive the real screens
+against in-memory storage, with the real rules (`resolveAdjust`, `clampAward`, `rollOne`)
+underneath. What is left needs hardware:
 
-- Habits, seven steps: `docs/superpowers/plans/core-loop/September_2026/2026-09-12-habits-vertical.md` (Task 5, Step 3)
-- Gacha, eight steps: `docs/superpowers/plans/core-loop/September_2026/2026-09-12-gacha-vertical.md` (Task 6, Step 3)
+- Habits (Task 5, Step 3): steps 1–6 ✅ tested. **Step 7, cold restart** — device only.
+- Gacha (Task 6, Step 3): steps 1–6 and 8 ✅ tested. **Step 7, cold restart** — device only.
+
+Do not read that as "mostly verified". The screen tests cannot touch the four checks
+above — the native module loading, migrations applying, state surviving a restart, or
+real SQLite concurrency. They are a complement to the device pass, not a substitute.
 
 Decisions taken while building each, with the alternatives weighed:
 
 - `docs/status/2026-09-15-habits-vertical-decisions.md`
 - `docs/status/2026-09-15-gacha-vertical-decisions.md`
 - `docs/status/2026-09-15-write-serialisation-decisions.md`
+- `docs/status/2026-09-15-screen-tests-decisions.md`
 
-That leaves, in rough priority order:
+That leaves, in rough priority order. **All three need something this machine does not
+have** — a device, or art:
 
-1. **The first device run.** It now exercises the whole core loop — earn a ticket on
-   Today, spend it on Summon, see it in Collection — so it clears the four checks above
-   and both walkthroughs at once.
-2. Real character art. All nine sprites in `assets/characters/` are copies of
+1. **The first device run.** It exercises the whole core loop — earn a ticket on Today,
+   spend it on Summon, see it in Collection — clearing the four checks above and the two
+   cold-restart steps at once. Still the highest-value item by a distance.
+2. **Midnight rollover** (see Known-minor below). Needs a design step first.
+3. Real character art. All nine sprites in `assets/characters/` are copies of
    `splash-icon.png`, sitting at their final paths so dropping real PNGs over them
    needs no code change.
 
@@ -148,12 +157,19 @@ Clear the four checks above when you get there, then delete that section from th
   `getAwardedToday()` and a `clampAward` re-export from the tickets barrel. If you find
   you need either, add it rather than assuming it was an oversight.
 
-## Known-minor, safe to defer
+## Known-minor
 
-- `cap.test.ts` has no case where one request exceeds the whole cap from zero
-  (`clampAward(10, 0, 5) → 5`). Same code path as a tested case.
-- `src/services/.gitkeep` and `src/types/.gitkeep` are now redundant.
-- `expo-status-bar` is installed but no longer imported anywhere.
+All three previously listed here are done (2026-09-15): the `clampAward(10, 0, 5)` case
+is covered, both redundant `.gitkeep` files are deleted, and `expo-status-bar` is
+uninstalled.
+
+One known defect remains, carried over from the habits vertical:
+
+- **Midnight rollover.** With the app left open across midnight, the screens keep
+  rendering yesterday's logs while taps write to the new date, so counts appear to reset
+  mid-session with no explanation. Fixing it properly means an `AppState` listener and a
+  date watch — new behaviour the spec does not describe, so it wants a design step rather
+  than a drive-by patch.
 
 ## Where the detail lives
 

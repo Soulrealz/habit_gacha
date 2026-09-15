@@ -26,3 +26,9 @@ describe('clampAward', () => {
     expect(clampAward(-2, 0, 5)).toBe(0);
   });
 });
+
+describe('clampAward at the cap boundary', () => {
+  it('clips a single request that exceeds the whole cap from zero', () => {
+    expect(clampAward(10, 0, 5)).toBe(5);
+  });
+});
