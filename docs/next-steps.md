@@ -69,49 +69,51 @@ loop has nowhere to go. Rarity split is currently 2 × 5★, 3 × 4★, 4 × 3�
 characters is a pure data change in `src/data/characters.ts` plus files, with no
 migration. Decide the target roster size _before_ commissioning art, not after.
 
-### 2. The economy: duplicates and what the collection is for
+### 2. ✅ The economy: duplicates and what the collection is for — done
 
-**Do these as one design conversation.** They are the same question:
+Built 2026-09-16 per `docs/superpowers/specs/economy/September_2026/2026-09-15-economy-design.md`
+and `docs/superpowers/plans/economy/September_2026/2026-09-16-character-ranks.md`, executed as
+seven tasks (T1–T7). Duplicates now raise a character's rank (0–5), derived from
+`owned_characters.copies` rather than stored: ranks 1–3 reveal lore, rank 4 unlocks a
+decorative border, rank 5 swaps in alternate artwork. See `docs/decisions.md`, entry of the
+same date, for the shards-rejected and global-border-toggle reasoning.
 
-- Pulling a character you own increments `copies` and shows `×2`. Nothing consumes it.
-- Which means: what _is_ the reward? Right now it is a picture. Whether that sustains
-  depends on what the pictures are for.
+**Not yet run on a device.** See `docs/status/OPEN-ITEMS.md`.
 
-Duplicates without a purpose is a counter that goes up. What they convert into depends
-entirely on what there is to spend on, so designing the conversion first would be
-designing blind.
-
-Good news: `owned_characters.copies` has tracked duplicates since the first migration
-specifically so this could be designed later **without one**.
-
-Prior art worth considering, none of it decided: duplicates into a soft currency that
-buys targeted pulls; duplicates into character upgrades; duplicates into cosmetic
-variants. v1 deliberately deferred this as the "trash pull economy".
-
-### 3. Streaks — after the economy, not before
+### 3. Streaks — now unblocked
 
 Wanted: consecutive days logged in, and/or consecutive days the ticket cap was maxed.
 
-Sequence it after §2, because it is **not independent of it**. A streak that pays tickets
-multiplies the whole economy, so its design depends on what tickets buy. Designing it
-first means picking numbers with nothing to calibrate against.
+§2 is done, so this is next in sequence — a streak that pays tickets multiplies the whole
+economy, and what tickets buy is now decided (rank progress, not a spendable currency), so
+there is finally something to calibrate against.
 
 Note also that the ledger already records `log_date` on every row, so "days the cap was
 maxed" is answerable from existing data with no schema change. "Days logged in" is not —
 nothing currently records app opens.
 
-### 4. A screen explaining the rules — any time
+### 4. ✅ A screen explaining the rules — done
 
-Wanted: somewhere explaining pull rates, the pity guarantee and the daily cap. The app
-currently teaches the 5/day cap only by hitting it.
+Built 2026-09-15 as `src/screens/HowItWorksScreen.tsx`, a fourth bottom tab. It states
+the daily ticket cap, the three pull rates and the pity guarantee. It was purely
+presentational at the time — no database reads, so no spinner and no error path — but
+that stopped being true once the "show rank borders" toggle landed on this branch: the
+screen now has state, an effect that reads the setting, and a write when the switch is
+flipped.
 
-Self-contained: no schema, no economy interaction, no dependency on anything above. Good
-work to slot in whenever.
+The hard constraint held: every number is read from `getGachaConfig()` at render time and
+none is retyped into the copy. The 3★ rate is derived as `1 - fiveStarRate -
+fourStarRate`, since no config field holds it. A test renders the screen against a config
+the app has never shipped and asserts the text tracks it, so hard-coding a number turns
+the suite red.
 
-**One hard constraint.** Every number it displays must be read from
-`src/config/gacha.ts` at runtime, never retyped into the copy. The moment a rate is tuned
-the screen would otherwise lie, and it is exactly the sort of drift nobody notices for
-months. Read `getGachaConfig()` so it also tells the truth in a dev build.
+`__DEV__` builds get a banner saying the rates on screen are not the real economy —
+`getGachaConfig()` honestly returns 25% and pity 5 there, which is exactly the misreading
+this file warns about above.
+
+Still unseen on a device: whether a fourth tab crowds the tab bar at narrow widths.
+
+See `docs/decisions.md`, entry of the same date.
 
 ## Things deliberately not being done
 

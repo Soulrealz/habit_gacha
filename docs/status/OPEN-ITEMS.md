@@ -1,6 +1,6 @@
 # Open Items — read before trusting anything in `src/`
 
-Last updated: 2026-09-15. This file is auto-loaded into every Claude session via
+Last updated: 2026-09-16. This file is auto-loaded into every Claude session via
 `CLAUDE.md`. Keep it short and current; delete items once they are genuinely done.
 
 ## Where the project actually stands
@@ -123,6 +123,73 @@ mark, since fixed. The foundation came up clean on first launch. If a later run 
 the spinner or the error screen, still suspect `expo-sqlite` loading or migrations before
 you suspect your vertical.
 
+## Character ranks — built, never run on a device
+
+Built 2026-09-16 (7 tasks, spec + plan under `docs/superpowers/specs/economy/` and
+`docs/superpowers/plans/economy/`): duplicate pulls now raise a character's rank (0–5),
+derived from `owned_characters.copies`. Ranks 1–3 reveal lore, rank 4 unlocks a border,
+rank 5 swaps in alternate artwork. 201/201 tests passing, `tsc --noEmit` and `expo lint`
+clean. See `docs/decisions.md`, entry of the same date, for what was decided and rejected
+(shards, per-character border toggle, storing rank instead of deriving it).
+
+**None of this has ever run on a device.** Everything above is unit-tested only, same
+caveat as every other item in this file before the 2026-09-15 run. Specific gaps worth
+naming rather than assuming closed:
+
+- **The `settings` table (migration 1 in `src/services/db/schema.ts`) is verified by
+  inspection only.** No automated test in this repo exercises the actual SQL — not the
+  table definition, not the `ON CONFLICT` upsert in `src/services/settings/`, not the
+  migration's validity against real SQLite. Every service test mocks the db module because
+  `expo-sqlite` cannot run under jest. This is the same limitation every prior migration
+  here has had; it just hasn't been written down until now.
+- **Collection → Detail navigation is unverified at runtime.** `src/navigation/CollectionStack.tsx`
+  is never mounted by any test. Its correctness rests entirely on TypeScript agreeing that
+  `CollectionStackParamList['CharacterDetail']` matches `CharacterDetailScreen`'s `route`
+  prop. Tapping a character in the collection grid could fail at runtime and no test in
+  this repo would notice. Closing it needs an integration test mounting
+  `NavigationContainer`, which nothing here currently does.
+- **The rank border toggle, the grid's rank pips, and the character detail screen's
+  lore/border/alt-art rendering have only ever been exercised through mocked settings and
+  mocked config.** `docs/status/DEVICE-RUN-CHECKLIST.md` has been extended with the steps to
+  actually look at them.
+- **Installing `@react-navigation/native-stack` (for the Collection → Detail push)
+  transitively upgraded `@react-navigation/core` 7.21.13 → 7.22.1 and
+  `@react-navigation/native` 7.3.18 → 7.4.1.** That is the navigation core **all four
+  tabs** run through, including Today, Summon and How it works — the three this feature
+  never touched. No test in this repo mounts a real navigator, and `tsc --noEmit`,
+  `expo lint` and `jest` cannot catch a runtime navigation regression from a transitive
+  bump like this. `npx expo-doctor` reports 20/21 — its one failure is `expo` 57.0.22 vs
+  an expected ~57.0.23, which is unrelated external patch drift this branch did not
+  cause (the lockfile diff never touches `expo` itself). Exercise the untouched tabs, not
+  just Collection, on the device run for this reason.
+
+## Developer panel — dev builds only
+
+Added 2026-09-16. A **Developer** section at the bottom of the How it works tab, rendered
+only when `__DEV__`. Three controls:
+
+- **+10 / +50 tickets** — grants outright, ignoring the daily cap.
+- **Reset collection** — wipes `owned_characters`; the grid goes back to silhouettes.
+- **Reset pity counter** — back to 0, so the guarantee can be tested from a known state.
+
+Both resets need two taps: they sit on a screen you open to read the pull rates, so a
+stray tap must not cost a test session.
+
+**Grants cannot consume a daily cap.** `awardTickets` enforces the cap by summing today's
+positive ledger rows, so a grant dated today would silently exhaust it and stop real habit
+completions paying out — corrupting the exact behaviour you granted the tickets to test.
+Dev grants are therefore written with `log_date = '1970-01-01'` and `reason = 'dev_grant'`:
+they count toward the balance, which sums the whole ledger unfiltered, but never toward any
+day's cap. The alternative — teaching `awardTickets` to exclude `dev_grant` — would have
+meant editing the ticket seam the habits vertical shares.
+
+**The `__DEV__` check in the UI is not the safety mechanism.** `src/services/dev` throws on
+every operation outside a dev build. A UI gate is one misplaced edit from failing open, and
+all three actions either destroy data or mint currency. There is a test asserting all three
+refuse and write nothing when `__DEV__` is false.
+
+Like everything else here, **never run on a device.**
+
 ## Design questions raised by the first device run
 
 All of these came out of playing the loop on 2026-09-15. None is a bug in the machinery;
@@ -147,46 +214,41 @@ The ticket stays paid, because it may already have been spent. That asymmetry is
 and worth stating in the UI rather than hiding: **progress is editable, earnings are
 final.**
 
-### What duplicates are worth
+### ✅ What duplicates are worth, and what the collection is ultimately for — resolved
 
-Pulling a character you already own currently increments `copies` and shows `×2`. Nothing
-consumes it.
+Both were the same question and were designed together, 2026-09-16: pulling a character
+you already own now raises its rank (0–5), read from `owned_characters.copies` rather than
+a new counter. Rank 1–3 reveals lore, rank 4 a border, rank 5 alternate artwork — so the
+collection is now a thing worth over-pulling into, not just a completion checklist. See
+"Character ranks — built, never run on a device" above, and `docs/decisions.md`.
 
-`owned_characters.copies` has tracked duplicates since the first migration precisely so
-this could be designed later without one — that decision is now paying off.
-
-### What the collection is ultimately for
-
-The open question underneath duplicates, and the bigger of the two. Right now the reward
-for habits is a picture. Whether that sustains depends on what the pictures are _for_,
-and the answer determines what duplicates convert into. **Design these two together** —
-duplicates without a purpose is just a counter that goes up.
-
-### Streaks
+### Streaks — now unblocked
 
 Wanted: consecutive days logged in, and/or consecutive days the ticket cap was maxed.
 
-Deliberately out of scope for v1. Worth noting it is not independent of the two questions
-above: a streak that pays tickets multiplies the economy, so its design depends on what
-tickets ultimately buy. Sequence it after them.
+Was deliberately out of scope for v1, and not independent of the question resolved above: a
+streak that pays tickets multiplies the economy, so its design depends on what tickets
+ultimately buy. That is now decided (rank progress), so streaks is next — see
+`docs/next-steps.md` §3.
 
-### A screen explaining the rules
+### ✅ A screen explaining the rules — built
 
-Wanted: somewhere that explains the pull rates, the pity guarantee and the daily cap.
-
-The app currently teaches the 5/day cap only by hitting it. Self-contained, no schema, no
-economy interaction — it can be built any time. One constraint: every number it displays
-must be read from `src/config/gacha.ts`, never retyped into the copy, or the docs and the
-behaviour will drift the first time a rate is tuned.
+`HowItWorksScreen`, a fourth tab, added 2026-09-15 and extended 2026-09-16 with a
+"Duplicates and ranks" section. Ticket cap, pull rates, the pity guarantee, and now the
+copies-per-rank ladders — every number read from `getGachaConfig()` / `getRankThresholds()`
+at render time and tested against values the app has never shipped so it cannot drift. A
+`__DEV__` banner says the displayed rates are not the
+real economy. Unverified on a device: the fourth tab's effect on the tab bar.
 
 ## Decisions made under uncertainty — revisit if you disagree
 
 - **Dev config overrides rates only, not `dailyTicketCap`.** The two vertical plans
   originally contradicted each other here: the gacha walkthrough wanted a raised dev cap,
   the habits walkthrough needed the 5/day cap to actually bind. The spec authorises a
-  rate override only, so the cap now stays at 5 in dev. Consequence: if you need more
-  than five pulls in one sitting while testing gacha, raise `dailyTicketCap` in
-  `src/config/gacha.ts` as a local uncommitted edit and revert before your PR.
+  rate override only, so the cap stays at 5 in dev — and it still does. **The old
+  workaround of raising `dailyTicketCap` as a local uncommitted edit is obsolete: use the
+  Developer panel above instead.** It was always a trap, because forgetting to revert it
+  ships a changed economy.
 - **`app.json` gained a `plugins: ["expo-sqlite"]` entry.** Automatic and required; do
   not remove it.
 - **Two functions were deliberately not built** because nothing consumes them:
@@ -205,6 +267,8 @@ See `docs/status/2026-09-15-midnight-rollover-decisions.md`.
 
 - Authoritative design: `docs/superpowers/specs/core-loop/September_2026/2026-09-12-core-loop-design.md`
 - Foundation plan as executed: `docs/superpowers/plans/core-loop/September_2026/2026-09-12-foundation.md`
+- Character ranks design: `docs/superpowers/specs/economy/September_2026/2026-09-15-economy-design.md`
+- Character ranks plan as executed: `docs/superpowers/plans/economy/September_2026/2026-09-16-character-ranks.md`
 - Architecture state and open technical decisions: `docs/architecture.md`
 - Decision log: `docs/decisions.md`
 - **Forward plan: `docs/next-steps.md`**

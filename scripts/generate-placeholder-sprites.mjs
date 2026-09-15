@@ -97,8 +97,14 @@ function encodePng(width, height, pixelAt) {
   ]);
 }
 
-function spriteFor({ letter, rarity }) {
-  const background = RARITY_COLOURS[rarity];
+// `alt` inverts the sprite — rarity-coloured glyph on near-black, inside a rarity
+// border — so the R5 unlock is unmistakably a different image on screen. Still not
+// art; see the header comment.
+const ALT_BACKGROUND = [0x21, 0x25, 0x29];
+const ALT_BORDER = 14;
+
+function spriteFor({ letter, rarity }, alt = false) {
+  const colour = RARITY_COLOURS[rarity];
   const glyph = GLYPHS[letter];
   const glyphPixelW = GLYPH_W * SCALE;
   const glyphPixelH = GLYPH_H * SCALE;
@@ -109,14 +115,24 @@ function spriteFor({ letter, rarity }) {
     const gx = Math.floor((x - originX) / SCALE);
     const gy = Math.floor((y - originY) / SCALE);
     const inGlyph = gx >= 0 && gx < GLYPH_W && gy >= 0 && gy < GLYPH_H && glyph[gy][gx] === '#';
-    return inGlyph ? INK : background;
+
+    if (!alt) {
+      return inGlyph ? INK : colour;
+    }
+
+    const inBorder =
+      x < ALT_BORDER || y < ALT_BORDER || x >= SIZE - ALT_BORDER || y >= SIZE - ALT_BORDER;
+    if (inBorder) {
+      return colour;
+    }
+    return inGlyph ? colour : ALT_BACKGROUND;
   });
 }
 
 mkdirSync(OUT_DIR, { recursive: true });
 for (const character of CHARACTERS) {
-  const path = join(OUT_DIR, `${character.id}.png`);
-  writeFileSync(path, spriteFor(character));
-  console.log(`wrote ${character.id}.png  (${character.letter}, ${character.rarity}★)`);
+  writeFileSync(join(OUT_DIR, `${character.id}.png`), spriteFor(character, false));
+  writeFileSync(join(OUT_DIR, `${character.id}_alt.png`), spriteFor(character, true));
+  console.log(`wrote ${character.id}.png + _alt.png  (${character.letter}, ${character.rarity}★)`);
 }
-console.log(`\n${CHARACTERS.length} placeholder sprites written to assets/characters/`);
+console.log(`\n${CHARACTERS.length * 2} placeholder sprites written to assets/characters/`);

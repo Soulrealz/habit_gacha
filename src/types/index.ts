@@ -19,6 +19,14 @@ export type Character = {
   name: string;
   rarity: Rarity;
   sprite: ImageSourcePropType;
+  /**
+   * Revealed one entry per rank at R1, R2, R3: epithet, background, personal line.
+   * A fixed-length tuple rather than `string[]` on purpose — a character missing an
+   * entry is then a compile error instead of a blank panel on the detail screen.
+   */
+  lore: [string, string, string];
+  /** Unlocked at R5. */
+  altSprite: ImageSourcePropType;
 };
 
 export type HabitLog = {

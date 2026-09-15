@@ -1,11 +1,26 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { RankPips } from '../components/RankPips';
 import { CHARACTERS, RARITY_COLOURS } from '../data/characters';
 import { getCollection } from '../services/collection';
 import { countOwned, toOwnedCopies, type OwnedCopies } from '../services/collection/owned';
+import { rankFor } from '../services/collection/rank';
 
-export function CollectionScreen() {
+type CollectionScreenProps = {
+  /** Optional so the screen still renders standalone in tests and before the stack exists. */
+  onOpen?: (characterId: string) => void;
+};
+
+export function CollectionScreen({ onOpen }: CollectionScreenProps) {
   const [owned, setOwned] = useState<OwnedCopies | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -66,9 +81,19 @@ export function CollectionScreen() {
         {CHARACTERS.map((character) => {
           const copies = owned[character.id] ?? 0;
           const isOwned = copies > 0;
+          const rank = rankFor(character.rarity, copies);
 
           return (
-            <View key={character.id} style={styles.cell}>
+            <Pressable
+              key={character.id}
+              style={styles.cell}
+              // Locked cells are not pressable: there is nothing to show, and an
+              // accessibility label on one would announce a character the player has
+              // not met.
+              disabled={!isOwned || !onOpen}
+              accessibilityLabel={isOwned ? `Open ${character.name}` : undefined}
+              onPress={isOwned && onOpen ? () => onOpen(character.id) : undefined}
+            >
               {/* Unowned characters render as silhouettes rather than being hidden:
                   the visible gap is most of what drives a collection loop. */}
               <Image
@@ -85,7 +110,15 @@ export function CollectionScreen() {
                 {isOwned ? character.name : '???'}
               </Text>
               {copies > 1 ? <Text style={styles.copies}>×{copies}</Text> : null}
-            </View>
+              {isOwned ? (
+                <RankPips
+                  rank={rank}
+                  colour={RARITY_COLOURS[character.rarity]}
+                  testID={`pips-${character.id}`}
+                  style={styles.pips}
+                />
+              ) : null}
+            </Pressable>
           );
         })}
       </ScrollView>
@@ -104,4 +137,5 @@ const styles = StyleSheet.create({
   spriteLocked: { opacity: 0.15 },
   name: { marginTop: 6, fontWeight: '600' },
   copies: { color: '#868e96', fontSize: 12 },
+  pips: { marginTop: 4 },
 });

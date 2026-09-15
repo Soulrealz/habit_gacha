@@ -24,8 +24,14 @@ Then press `a` for Android (or scan the QR with Expo Go).
 Dev build note: `__DEV__` is true, so `DEV_GACHA_CONFIG` applies — a **25% 5★ rate and
 pity at 5**, which is what makes the GUARANTEED badge reachable in one sitting. The daily
 ticket cap stays at **5** in dev deliberately, because the habits walkthrough needs it to
-bind. If you need more than five pulls in one sitting, raise `dailyTicketCap` in
-`src/config/gacha.ts` as a local uncommitted edit and revert it before any PR.
+bind.
+
+For more than five pulls in a sitting, use the **Developer panel** at the bottom of the
+How it works tab (dev builds only): `+10` / `+50 🎟` grants outright, and it can also reset
+the collection and the pity counter. Grants are dated outside any real day, so they cannot
+consume the cap and cannot stop the habits walkthrough paying out — you can grant and still
+test the cap in the same session. **Do not edit `dailyTicketCap` by hand any more**; the old
+workaround shipped a changed economy whenever someone forgot to revert it.
 
 ---
 
@@ -79,6 +85,55 @@ hold against real SQLite. Step 7 is the one nothing has ever tested.
       duplicate count is still there. ← _never tested by anything_
 - [ ] 8. **Tap Summon rapidly with exactly one ticket.** Exactly one pull resolves and the
       balance never goes negative.
+
+## Phase 3b — Character ranks (2026-09-16, never run on a device)
+
+Everything below is new since the last device run and is unit-tested only. `RANK_THRESHOLDS`
+in `src/config/gacha.ts` is deliberately not dev-overridden (see `docs/status/OPEN-ITEMS.md`,
+"Decisions made under uncertainty"), so ranks cost their real number of copies even in dev.
+
+**The Developer panel changes what is reachable, and not evenly.** Grant `+50 🎟` and spend
+it, and the counter-intuitive result is that the _rarest_ characters max out first: dev rates
+flood you with 5★s (~33% effective, pity at 5) and there are only two 5★ characters to split
+them between, while R5 on a 5★ costs just 6 copies.
+
+| Rarity | Copies for R5 | Roughly what 50 dev pulls yields, per character | Reachable?                                |
+| ------ | ------------- | ----------------------------------------------- | ----------------------------------------- |
+| 5★     | 6             | ~8                                              | ✅ one `+50` grant, give or take variance |
+| 4★     | 16            | ~6                                              | about three grants                        |
+| 3★     | 40            | ~4                                              | ❌ not practically                        |
+
+So: **use the panel for 5★ ranks**, and for 3★/4★ still fall back to **temporarily lowering
+`RANK_THRESHOLDS`** as a local uncommitted edit — e.g. `3: [1, 1, 2, 2, 3]` — reverting
+before any PR. The numbers above are expectations, not guarantees; a bad run of luck may
+need a second grant.
+
+- [ ] 1. From the Collection grid, **tap an owned character.** It navigates to a detail
+      screen (`CharacterDetailScreen`) showing its art, name, rarity and copy count. ←
+      _Collection → Detail navigation has never been mounted by any test — this is the
+      first time it runs at all, on real `@react-navigation/native-stack`._
+- [ ] 2. **Tap an unowned (`???`) cell.** Nothing happens — no navigation, no crash.
+- [ ] 3. Pull duplicates of the same character until it crosses a rank threshold (lower
+      `RANK_THRESHOLDS` per the note above to make this fast). Reopen its detail screen:
+      the newly-unlocked lore entry appears, and locked future ranks still read "Locked".
+- [ ] 4. In the Collection grid, an owned character shows **rank pips** next to its cell
+      matching its current rank. An unowned cell shows neither pips nor a NEW badge.
+- [ ] 5. Push a character to rank 4. Its detail screen shows the decorative border. (The
+      grid never shows it — the grid renders rank pips only.)
+- [ ] 6. On the How it works tab, toggle **"Show rank borders" off.** The rank-4+ border
+      disappears from the detail screen without a restart. Toggle it back on — it
+      reappears. ← _the `settings` table (migration 1) backing this toggle has only ever
+      been exercised through a mocked db module; this is its first real SQLite write._
+- [ ] 7. **Fully close and reopen the app** after toggling the border off. The setting is
+      still off. (Proves the `settings` migration actually persisted, not just the in-memory
+      state.)
+- [ ] 8. Push a character to rank 5. Its detail screen shows the alternate artwork in place
+      of the normal sprite.
+- [ ] 9. On the How it works tab, the new **"Duplicates and ranks"** section (above
+      "Display") shows a copies-per-rank row for ★★★★★ / ★★★★ / ★★★ matching the numbers in
+      `RANK_THRESHOLDS` — including any local edit made for step 3 above, which is the
+      point: this screen must never show numbers that don't match what the game is actually
+      running.
 
 ## Phase 4 — The cross-vertical race
 
