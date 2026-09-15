@@ -5,6 +5,30 @@ re-litigated or forgotten. Newest at top.
 
 ---
 
+### 2026-09-15 — All database writes go through one in-process queue
+
+- **Decision**: `withWriteTransaction` in `src/services/db` is the only supported way to
+  write. It serialises every write in the app through a single promise chain and retries
+  transient lock errors. Calling `db.withExclusiveTransactionAsync` or
+  `db.withTransactionAsync` directly is banned.
+- **Why**: `withExclusiveTransactionAsync` does not serialise callers — it opens a new
+  connection per call and issues a _deferred_ `BEGIN`, so two overlapping read-then-writes
+  both take a read snapshot and the loser fails with "database is locked". Measured: 8
+  concurrent ticket awards against a cap of 5 left **7 of 8 throwing and a balance of 1**.
+  With the queue, 0 throw and the balance is 5.
+- **Decision**: `PRAGMA busy_timeout` is **not** the fix, reversing what
+  `OPEN-ITEMS.md` previously prescribed. SQLite skips the busy handler for a stale
+  snapshot (`SQLITE_BUSY_SNAPSHOT`), so it makes no difference to the read-then-write
+  upgrade — measured at 0 ms to failure with and without it. It is also per-connection
+  and would never have reached the connections expo opens for transactions. It is still
+  set on the main connection, where it does help plain write-lock contention.
+- **Consequence**: the habits vertical's local JS queue was removed as subsumed, and
+  `src/services/db/writeQueue.ts` carries the measurements in a comment so this is not
+  re-derived.
+- **Status**: Written and unit-tested; **never run on a device.**
+
+---
+
 ### 2026-09-12 — Foundation layer: SQLite, exclusive transactions, parallel verticals
 
 - **Decision**: Storage is `expo-sqlite` with an append-only `ticket_ledger` rather

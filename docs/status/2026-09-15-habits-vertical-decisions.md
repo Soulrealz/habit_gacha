@@ -9,6 +9,12 @@ This records the judgement calls made without a human in the loop, so they can b
 overturned cheaply rather than re-litigated. Anything that survives review should
 graduate into `docs/decisions.md`.
 
+> **Superseded in part (2026-09-15).** The JS promise queue described in §3 has been
+> removed: `withWriteTransaction` in the foundation now serialises every write in the
+> app, which also covers the cross-module case this vertical's local queue could not.
+> The `busy_timeout` fix recommended below turned out not to work at all — see
+> `2026-09-15-write-serialisation-decisions.md`. The rest of this document stands.
+
 ---
 
 ## 1. Which open item to take up

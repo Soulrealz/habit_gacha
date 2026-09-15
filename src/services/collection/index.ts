@@ -1,5 +1,5 @@
 import type { OwnedCharacter } from '../../types';
-import { getDatabase } from '../db';
+import { getDatabase, withWriteTransaction } from '../db';
 
 type OwnedCharacterRow = {
   character_id: string;
@@ -28,15 +28,14 @@ export async function getCollection(): Promise<OwnedCharacter[]> {
 // A duplicate increments `copies` and leaves `first_obtained_at` untouched, which is
 // what keeps the deferred duplicate economy possible later without a migration.
 //
-// withExclusiveTransactionAsync, never withTransactionAsync — the latter is a bare
-// BEGIN/COMMIT on the shared connection that overlapping callers corrupt. Every query
-// below runs on `txn`: a stray `db` call in here deadlocks against the write lock
-// `txn` holds.
+// Read-then-write, so it goes through withWriteTransaction — never
+// db.withExclusiveTransactionAsync directly, which does not serialise callers. Every
+// query below runs on `txn`: a stray `db` call in here deadlocks against the write
+// lock `txn` holds.
 export async function recordCharacter(characterId: string): Promise<boolean> {
-  const db = getDatabase();
   let isNew = false;
 
-  await db.withExclusiveTransactionAsync(async (txn) => {
+  await withWriteTransaction(async (txn) => {
     const existing = await txn.getFirstAsync<{ copies: number }>(
       'SELECT copies FROM owned_characters WHERE character_id = ?',
       characterId,

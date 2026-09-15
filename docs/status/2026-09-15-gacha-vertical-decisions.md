@@ -8,6 +8,11 @@ against the versioned docs, as `AGENTS.md` requires).
 Same purpose as the sibling doc, `2026-09-15-habits-vertical-decisions.md`: record the
 judgement calls made without a human in the loop so they can be overturned cheaply.
 
+> **Partly superseded (2026-09-15).** §3 concluded that `spendTicket` did not need a JS
+> queue. It now has one anyway, app-wide: `withWriteTransaction` serialises every write.
+> The reasoning in §3 about retryability still holds and is why no extra handling was
+> needed on top. See `2026-09-15-write-serialisation-decisions.md`.
+
 ---
 
 ## 1. 🔴 The severe one: persistence order inside `performSummon`

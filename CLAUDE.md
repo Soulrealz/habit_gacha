@@ -19,9 +19,12 @@ foundation layer.
   implemented in the foundation layer (`src/services/db/`).
 - Every tunable game-balance number lives in `src/config/gacha.ts` and nowhere
   else. Never hard-code a rate, pity threshold, or daily cap.
-- Database writes that read-then-write must use `withExclusiveTransactionAsync`
-  with all queries on the `txn` handle. Never `withTransactionAsync` — see the
-  open-items file for why.
+- **Every database write goes through `withWriteTransaction` from
+  `src/services/db`**, with all queries on the `txn` handle it passes you. Never
+  call `db.withExclusiveTransactionAsync` or `db.withTransactionAsync` directly:
+  neither serialises concurrent callers, and the read-then-write pattern this app
+  uses everywhere fails with "database is locked" when two overlap. `busy_timeout`
+  does not fix that. `src/services/db/writeQueue.ts` has the measurements.
 - Monetization: rewarded ads (extra pulls, streak saves). Not yet wired in.
 
 ## Code conventions

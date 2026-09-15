@@ -2,7 +2,7 @@ import { getGachaConfig } from '../../config/gacha';
 import { charactersByRarity } from '../../data/characters';
 import type { Character, Rarity } from '../../types';
 import { recordCharacter } from '../collection';
-import { getDatabase } from '../db';
+import { getDatabase, withWriteTransaction } from '../db';
 import { spendTicket } from '../tickets';
 import { pickCharacter, rollOne } from './engine';
 
@@ -28,9 +28,13 @@ async function readPity(): Promise<number> {
   return row?.pity_counter ?? 0;
 }
 
+// Goes through the write queue even though a blind single-statement UPDATE is already
+// atomic on its own: it keeps this, the last write in the app, from contending for the
+// lock with a queued transaction at all.
 async function writePity(value: number): Promise<void> {
-  const db = getDatabase();
-  await db.runAsync('UPDATE player_state SET pity_counter = ? WHERE id = 1', value);
+  await withWriteTransaction(async (txn) => {
+    await txn.runAsync('UPDATE player_state SET pity_counter = ? WHERE id = 1', value);
+  });
 }
 
 // The only place in this vertical that calls getGachaConfig() or Math.random.

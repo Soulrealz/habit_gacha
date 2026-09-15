@@ -1,6 +1,6 @@
 import { today } from '../../lib/date';
 import type { Habit, HabitLog } from '../../types';
-import { getDatabase } from '../db';
+import { getDatabase, withWriteTransaction } from '../db';
 import { awardTickets } from '../tickets';
 import { clampCount, resolveAdjust, shouldAward } from './completion';
 
@@ -44,32 +44,11 @@ export async function getTodayLogs(): Promise<Record<string, HabitLog>> {
   return logs;
 }
 
-// Serialises every adjustHabitCount call in JS before it ever reaches SQLite.
-//
-// withExclusiveTransactionAsync does NOT queue concurrent callers, despite the name.
-// Read expo-sqlite/build/SQLiteDatabase.js: it opens a *new connection* and issues a
-// plain deferred `BEGIN`. Two overlapping callers therefore both start read
-// transactions, and the second one's attempt to upgrade to a write aborts with
-// "database is locked" — expo-sqlite sets no busy_timeout. Two fast taps on the same
-// quick-add button are exactly that race, so without this queue the second tap throws
-// instead of counting.
-//
-// This only covers callers inside this module. A habit tap racing the Summon tab's
-// spendTicket still collides at the SQL layer; the durable fix is a busy_timeout in
-// the foundation's initDatabase, which is a shared file and needs the other developer
-// (see docs/status/OPEN-ITEMS.md).
-let writeQueue: Promise<unknown> = Promise.resolve();
-
-export function adjustHabitCount(habit: Habit, delta: number): Promise<AdjustResult> {
-  const next = writeQueue.then(() => adjustHabitCountUnqueued(habit, delta));
-  // Swallowed only on the queue's own copy, so one failed write does not poison
-  // every later one. The caller still sees the rejection through `next`.
-  writeQueue = next.catch(() => undefined);
-  return next;
-}
-
-async function adjustHabitCountUnqueued(habit: Habit, delta: number): Promise<AdjustResult> {
-  const db = getDatabase();
+// This module used to carry its own JS promise queue, because two fast taps on the
+// same quick-add button would otherwise race at the SQL layer. That queue is gone:
+// `withWriteTransaction` now serialises every write in the app, which also covers the
+// case the local queue could not — a habit tap racing the Summon tab.
+export async function adjustHabitCount(habit: Habit, delta: number): Promise<AdjustResult> {
   const logDate = today();
 
   let decision = resolveAdjust({
@@ -80,11 +59,11 @@ async function adjustHabitCountUnqueued(habit: Habit, delta: number): Promise<Ad
     now: new Date().toISOString(),
   });
 
-  // withExclusiveTransactionAsync, never withTransactionAsync — the latter is a bare
-  // BEGIN/COMMIT on the shared connection that overlapping callers corrupt. Every
+  // Read-then-write, so it goes through withWriteTransaction — never
+  // db.withExclusiveTransactionAsync directly, which does not serialise callers. Every
   // query below runs on `txn`: a stray `db` call in here deadlocks against the write
   // lock `txn` is holding.
-  await db.withExclusiveTransactionAsync(async (txn) => {
+  await withWriteTransaction(async (txn) => {
     const row = await txn.getFirstAsync<HabitLogRow>(
       'SELECT habit_id, log_date, count, completed_at FROM habit_logs WHERE habit_id = ? AND log_date = ?',
       habit.id,

@@ -1,6 +1,6 @@
 import { getGachaConfig } from '../../config/gacha';
 import { today } from '../../lib/date';
-import { getDatabase } from '../db';
+import { getDatabase, withWriteTransaction } from '../db';
 import { clampAward } from './cap';
 
 export async function getBalance(): Promise<number> {
@@ -12,12 +12,11 @@ export async function getBalance(): Promise<number> {
 }
 
 export async function awardTickets(reason: string, amount: number): Promise<number> {
-  const db = getDatabase();
   const dailyCap = getGachaConfig().dailyTicketCap;
   const logDate = today();
   let granted = 0;
 
-  await db.withExclusiveTransactionAsync(async (txn) => {
+  await withWriteTransaction(async (txn) => {
     const row = await txn.getFirstAsync<{ awarded: number | null }>(
       'SELECT SUM(delta) AS awarded FROM ticket_ledger WHERE delta > 0 AND log_date = ?',
       logDate,
@@ -40,13 +39,17 @@ export async function awardTickets(reason: string, amount: number): Promise<numb
 }
 
 export async function spendTicket(): Promise<boolean> {
-  const db = getDatabase();
   let spent = false;
 
-  await db.withExclusiveTransactionAsync(async (txn) => {
+  await withWriteTransaction(async (txn) => {
     const row = await txn.getFirstAsync<{ balance: number | null }>(
       'SELECT SUM(delta) AS balance FROM ticket_ledger',
     );
+
+    // Recomputed on every attempt, never left over from an aborted one: the queue
+    // may re-run this same closure after a rollback, and a stale `true` here would
+    // hand out a summon with no debit in the ledger.
+    spent = false;
 
     if ((row?.balance ?? 0) > 0) {
       await txn.runAsync(

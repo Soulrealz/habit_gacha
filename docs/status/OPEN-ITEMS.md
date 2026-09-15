@@ -37,54 +37,73 @@ connection. With overlapping calls, the second caller's `BEGIN` is rejected, its
 handler's `ROLLBACK` aborts the **first** caller's transaction, and that caller's write
 then commits unprotected.
 
-This has been fixed — everything now uses `withExclusiveTransactionAsync` with all
-queries on the `txn` handle — but the fix has never executed. When you first run the
-app, deliberately spam the quick-add and summon buttons and confirm the ticket balance
-never goes wrong.
+`withExclusiveTransactionAsync` was the first fix. It was necessary but **not
+sufficient** — it does not serialise callers either. It opens a new connection per call
+and issues a plain **deferred** `BEGIN`, so two overlapping read-then-writes both take a
+read snapshot and the loser's upgrade to a write fails with "database is locked".
 
-**Rule for all new code:** never use `withTransactionAsync` in this project. Always
-`withExclusiveTransactionAsync`, and every query inside the callback must use `txn`, not
-the outer `db` — `txn` is a separate connection holding the write lock, so a stray `db`
-call inside the callback deadlocks.
+**That is now fixed properly (2026-09-15) — see `withWriteTransaction` below.** The fix
+has still never executed on a device, so item 4 stays open: when you first run the app,
+deliberately spam the quick-add and summon buttons and confirm the ticket balance never
+goes wrong.
 
-### 🔴 `withExclusiveTransactionAsync` does not serialise either — read this
+### ✅ Resolved: every write now goes through `withWriteTransaction`
 
-Found 2026-09-15 while building the habits vertical, confirmed by reading
-`node_modules/expo-sqlite/build/SQLiteDatabase.js:155`. The name oversells it. The
-implementation opens a **new connection** and issues a plain **deferred** `BEGIN` — not
-`BEGIN EXCLUSIVE`, and with no queue. Expo's own doc comment on that function admits it:
-_"As long as the transaction is converted into a write transaction, the other async write
-queries will abort with `database is locked` error."_ Nothing in this project sets
-`busy_timeout`, so the losing caller gets `SQLITE_BUSY` **immediately**.
+**Rule for all new code:** never call `db.withTransactionAsync` or
+`db.withExclusiveTransactionAsync` directly. Always `withWriteTransaction` from
+`src/services/db`, and every query inside the callback must use the `txn` handle it
+gives you, not the outer `db` — `txn` is a separate connection holding the write lock,
+so a stray `db` call inside the callback deadlocks.
 
-Two consequences:
+`withWriteTransaction` serialises every write in the app through one in-process promise
+chain and retries a transient lock error with bounded backoff. The app is one process
+with one JS thread, so that chain is a real mutex: our own writes can no longer overlap
+at all.
 
-- The good one: this fails loud, not silent. It cannot corrupt the ledger or break the
-  award-once rule the way `withTransactionAsync` could. The earlier fix was still right.
-- The bad one: the spec (`core-loop-design.md` §"concurrency") states that a second
-  concurrent caller "reads 0 and returns false". **It does not — it throws.** Every
-  caller needs an error path. `spendTicket` on the Summon tab has the same exposure.
+**An earlier version of this file prescribed a one-line fix — `PRAGMA busy_timeout` in
+`initDatabase()` — and that was wrong.** Two reasons, both measured rather than reasoned
+about:
 
-The habits vertical works around it locally: `adjustHabitCount` serialises its own
-callers through a JS promise queue, and `TodayScreen` catches and surfaces failures. That
-only covers collisions _within_ the habits module. A habit tap racing a summon still
-collides.
+1. **`busy_timeout` does not help the read-then-write upgrade**, which is the pattern
+   every service here uses. A stale snapshot fails with `SQLITE_BUSY_SNAPSHOT`, and
+   SQLite deliberately skips the busy handler for it, because waiting could never make
+   the upgrade succeed. Measured at 0 ms to failure with and without the pragma.
+2. **It is per-connection**, and the connections expo opens inside
+   `withExclusiveTransactionAsync` are created fresh with no pragmas — so it would never
+   have reached the transactions it was meant to protect.
 
-**The durable fix is one line in the foundation** — `PRAGMA busy_timeout = 5000` next to
-the `journal_mode = WAL` pragma in `initDatabase()` (`src/services/db/index.ts`). It was
-deliberately **not** applied unilaterally, because `src/services/db/` is shared and this
-file says shared changes need a conversation first. **That conversation is this item.**
-Whoever picks it up should also decide whether the gacha vertical wants the same JS queue
-around `spendTicket`. Verify it on the device run in the same rapid-tap test as item 4.
+The pragma is still set on the main connection, where it genuinely helps the one case it
+is designed for: plain write-lock contention with no open snapshot (measured: waits
+2.2 s instead of failing in 3 ms).
+
+Scale of what this was costing, from a probe reproducing the app's exact shape — 8
+concurrent read-then-writes against a daily cap of 5:
+
+|        | calls that threw | final balance |
+| ------ | ---------------- | ------------- |
+| Before | 7 of 8           | **1**         |
+| After  | 0 of 8           | **5** ✅      |
+
+Consequences worth knowing:
+
+- The spec (`core-loop-design.md` §concurrency) says a second concurrent caller "reads 0
+  and returns false". It never did — it threw. Callers still need an error path, and
+  both screens have one.
+- The habits vertical's local JS queue around `adjustHabitCount` has been **removed**, as
+  the foundation queue subsumes it and also covers what it could not: a habit tap racing
+  a summon.
+- Retries are only attempted for lock errors, and only for transactions that expo has
+  already rolled back, so nothing double-applies.
 
 ## Next steps
 
-**Both verticals are now written** (2026-09-15). The habits vertical is committed on
-`master`; the gacha vertical sits **uncommitted in the working tree**. Together they
-pass 65/65 tests, `tsc --noEmit`, `expo lint`, and an Android export.
+**Both verticals are now written** (2026-09-15), plus the write-serialisation fix above.
+The habits vertical is committed on `master`; the gacha vertical and the write queue sit
+**uncommitted in the working tree**. Together they pass 89/89 tests, `tsc --noEmit`,
+`expo lint`, and an Android export.
 
-**Neither has been run.** Each plan ends in a device walkthrough that this machine
-cannot perform, and those are the gates neither vertical has cleared:
+**Nothing has been run.** Each plan ends in a device walkthrough that this machine cannot
+perform, and those are the gates neither vertical has cleared:
 
 - Habits, seven steps: `docs/superpowers/plans/core-loop/September_2026/2026-09-12-habits-vertical.md` (Task 5, Step 3)
 - Gacha, eight steps: `docs/superpowers/plans/core-loop/September_2026/2026-09-12-gacha-vertical.md` (Task 6, Step 3)
@@ -93,16 +112,14 @@ Decisions taken while building each, with the alternatives weighed:
 
 - `docs/status/2026-09-15-habits-vertical-decisions.md`
 - `docs/status/2026-09-15-gacha-vertical-decisions.md`
+- `docs/status/2026-09-15-write-serialisation-decisions.md`
 
 That leaves, in rough priority order:
 
 1. **The first device run.** It now exercises the whole core loop — earn a ticket on
    Today, spend it on Summon, see it in Collection — so it clears the four checks above
    and both walkthroughs at once.
-2. **The `busy_timeout` conversation flagged in red above.** Both verticals now work
-   around it locally in different ways; neither workaround covers a habit tap racing a
-   summon, which the first device run can actually produce.
-3. Real character art. All nine sprites in `assets/characters/` are copies of
+2. Real character art. All nine sprites in `assets/characters/` are copies of
    `splash-icon.png`, sitting at their final paths so dropping real PNGs over them
    needs no code change.
 
