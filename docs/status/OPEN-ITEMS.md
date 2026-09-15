@@ -79,18 +79,32 @@ around `spendTicket`. Verify it on the device run in the same rapid-tap test as 
 
 ## Next steps
 
-**The habits vertical is written** (2026-09-15) and sits **uncommitted in the working
-tree on `master`** — it still needs a `feat/habit-tracking` branch, a commit, and a PR.
-It passes 33/33 tests, `tsc --noEmit`, `expo lint`, and an Android export, and its one
-unfinished gate is the seven-step device walkthrough in Task 5 of its plan, which this
-machine cannot run. Decisions taken while building it, with alternatives:
-`docs/status/2026-09-15-habits-vertical-decisions.md`.
+**Both verticals are now written** (2026-09-15). The habits vertical is committed on
+`master`; the gacha vertical sits **uncommitted in the working tree**. Together they
+pass 65/65 tests, `tsc --noEmit`, `expo lint`, and an Android export.
 
-That leaves:
+**Neither has been run.** Each plan ends in a device walkthrough that this machine
+cannot perform, and those are the gates neither vertical has cleared:
 
-- Gacha vertical: `docs/superpowers/plans/core-loop/September_2026/2026-09-12-gacha-vertical.md`
-- The device walkthrough for habits: `docs/superpowers/plans/core-loop/September_2026/2026-09-12-habits-vertical.md` (Task 5, Step 3)
-- The `busy_timeout` conversation flagged in red above.
+- Habits, seven steps: `docs/superpowers/plans/core-loop/September_2026/2026-09-12-habits-vertical.md` (Task 5, Step 3)
+- Gacha, eight steps: `docs/superpowers/plans/core-loop/September_2026/2026-09-12-gacha-vertical.md` (Task 6, Step 3)
+
+Decisions taken while building each, with the alternatives weighed:
+
+- `docs/status/2026-09-15-habits-vertical-decisions.md`
+- `docs/status/2026-09-15-gacha-vertical-decisions.md`
+
+That leaves, in rough priority order:
+
+1. **The first device run.** It now exercises the whole core loop — earn a ticket on
+   Today, spend it on Summon, see it in Collection — so it clears the four checks above
+   and both walkthroughs at once.
+2. **The `busy_timeout` conversation flagged in red above.** Both verticals now work
+   around it locally in different ways; neither workaround covers a habit tap racing a
+   summon, which the first device run can actually produce.
+3. Real character art. All nine sprites in `assets/characters/` are copies of
+   `splash-icon.png`, sitting at their final paths so dropping real PNGs over them
+   needs no code change.
 
 The verticals are designed to share no files. Stay inside your plan's stated file
 boundary — the "Global Constraints" section of each plan lists exactly what it owns.

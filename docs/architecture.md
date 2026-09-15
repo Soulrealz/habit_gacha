@@ -15,13 +15,19 @@ pulling for pixel-art/anime-style character sprites to collect.
 - **Foundation layer is merged to `master`** (PR #1): SQLite schema and migration
   runner, shared types, tunable config, the ticket ledger, and a three-tab
   navigation shell.
-- **Habits vertical is written, uncommitted in the working tree**: the gym habit
-  catalog (`src/data/habits.ts`), the pure award rules and logging service
+- **Habits vertical is merged to `master`**: the gym habit catalog
+  (`src/data/habits.ts`), the pure award rules and logging service
   (`src/services/habits/`), `HabitRow`, and a real `TodayScreen`.
-- No gacha or ad logic yet — the gacha vertical plan is still unstarted.
+- **Gacha vertical is written, uncommitted in the working tree**: the character roster
+  and rarity colours (`src/data/characters.ts`), the pure roll engine with pity
+  (`src/services/gacha/engine.ts`), the summon service (`src/services/gacha/`), the
+  collection service (`src/services/collection/`), and real `SummonScreen` and
+  `CollectionScreen`. Sprites are placeholders at their final paths.
+- The core loop is therefore complete in code: earn tickets on Today, spend them on
+  Summon, view results in Collection. No ad logic yet — deferred past v1.
 - Everything above is statically verified only. Nothing has ever run on a device —
   see `docs/status/OPEN-ITEMS.md` for what remains unconfirmed, including a
-  foundation-level `busy_timeout` gap the habits vertical works around locally.
+  foundation-level `busy_timeout` gap that both verticals work around locally.
 
 ## Open decisions
 
@@ -30,7 +36,7 @@ pulling for pixel-art/anime-style character sprites to collect.
 | Local storage engine  | **Decided: `expo-sqlite`**    | Append-only ticket ledger + habit logs; see spec §4                      |
 | Navigation            | **Decided: React Navigation** | Bottom tabs. expo-router rejected — the blank template has no `app/` dir |
 | Ad SDK                | Undecided                     | Rewarded ads for extra pulls / streak saves; deferred past v1            |
-| Sprite asset pipeline | Undecided                     | Bulk AI-generated sprites, bundled locally; the gacha vertical owns this |
+| Sprite asset pipeline | Undecided                     | Nine placeholders now sit at their final paths in `assets/characters/`   |
 | Duplicate economy     | Undecided                     | What 3★ dupes convert into. `owned_characters.copies` already records it |
 
 ## Non-goals for now
