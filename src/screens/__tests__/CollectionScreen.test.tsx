@@ -133,9 +133,13 @@ describe('rank on the collection grid', () => {
     store.rows = [own(character.id, RANK_THRESHOLDS[character.rarity][1])];
 
     const renderer = await renderAndSettle(<CollectionScreen />);
+    // Matched across every node carrying the testID, not just the first: RankPips is a
+    // composite component, so the testID appears on the element AND on the host View it
+    // renders, and only the host carries the label. Same wrapping that stops
+    // findAllByType seeing a Pressable — see src/test-utils/render.tsx.
     const pips = renderer.root.findAllByProps({ testID: `pips-${character.id}` });
 
-    expect(pips[0].props.accessibilityLabel).toBe('Rank 2 of 5');
+    expect(pips.map((node) => node.props.accessibilityLabel)).toContain('Rank 2 of 5');
   });
 
   it('opens the character when an owned cell is pressed', async () => {

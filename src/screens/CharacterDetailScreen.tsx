@@ -2,13 +2,13 @@ import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { RankBorder } from '../components/RankBorder';
+import { RankPips } from '../components/RankPips';
 import { CHARACTERS, RARITY_COLOURS } from '../data/characters';
 import { getCollection } from '../services/collection';
 import {
   ART_RANK,
   BORDER_RANK,
   copiesToNextRank,
-  MAX_RANK,
   rankFor,
   unlockedLore,
 } from '../services/collection/rank';
@@ -117,14 +117,7 @@ export function CharacterDetailScreen({ route }: CharacterDetailProps) {
       <Text style={[styles.name, { color: colour }]}>{character.name}</Text>
       <Text style={[styles.rarity, { color: colour }]}>{'★'.repeat(character.rarity)}</Text>
 
-      <View accessibilityLabel={`Rank ${rank} of ${MAX_RANK}`} style={styles.pips}>
-        {Array.from({ length: MAX_RANK }, (_, index) => (
-          <View
-            key={index}
-            style={[styles.pip, index < rank ? { backgroundColor: colour } : styles.pipEmpty]}
-          />
-        ))}
-      </View>
+      <RankPips rank={rank} colour={colour} size="large" style={styles.pips} />
 
       <Text style={styles.progress}>
         Rank {rank} · {held} {held === 1 ? 'copy' : 'copies'}
@@ -153,9 +146,7 @@ const styles = StyleSheet.create({
   art: { width: 200, height: 200, marginBottom: 12 },
   name: { fontSize: 26, fontWeight: '700' },
   rarity: { fontSize: 18, marginTop: 2 },
-  pips: { flexDirection: 'row', marginTop: 12 },
-  pip: { width: 14, height: 14, borderRadius: 7, marginHorizontal: 3 },
-  pipEmpty: { backgroundColor: '#dee2e6' },
+  pips: { marginTop: 12 },
   progress: { marginTop: 8, color: '#495057', fontWeight: '600' },
   loreRow: { flexDirection: 'row', alignSelf: 'stretch', marginTop: 16 },
   loreRank: { width: 32, fontWeight: '700', color: '#adb5bd' },

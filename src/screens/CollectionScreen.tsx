@@ -9,10 +9,11 @@ import {
   Text,
   View,
 } from 'react-native';
+import { RankPips } from '../components/RankPips';
 import { CHARACTERS, RARITY_COLOURS } from '../data/characters';
 import { getCollection } from '../services/collection';
 import { countOwned, toOwnedCopies, type OwnedCopies } from '../services/collection/owned';
-import { MAX_RANK, rankFor } from '../services/collection/rank';
+import { rankFor } from '../services/collection/rank';
 
 type CollectionScreenProps = {
   /** Optional so the screen still renders standalone in tests and before the stack exists. */
@@ -110,23 +111,12 @@ export function CollectionScreen({ onOpen }: CollectionScreenProps) {
               </Text>
               {copies > 1 ? <Text style={styles.copies}>×{copies}</Text> : null}
               {isOwned ? (
-                <View
+                <RankPips
+                  rank={rank}
+                  colour={RARITY_COLOURS[character.rarity]}
                   testID={`pips-${character.id}`}
-                  accessibilityLabel={`Rank ${rank} of ${MAX_RANK}`}
                   style={styles.pips}
-                >
-                  {Array.from({ length: MAX_RANK }, (_, index) => (
-                    <View
-                      key={index}
-                      style={[
-                        styles.pip,
-                        index < rank
-                          ? { backgroundColor: RARITY_COLOURS[character.rarity] }
-                          : styles.pipEmpty,
-                      ]}
-                    />
-                  ))}
-                </View>
+                />
               ) : null}
             </Pressable>
           );
@@ -147,7 +137,5 @@ const styles = StyleSheet.create({
   spriteLocked: { opacity: 0.15 },
   name: { marginTop: 6, fontWeight: '600' },
   copies: { color: '#868e96', fontSize: 12 },
-  pips: { flexDirection: 'row', marginTop: 4 },
-  pip: { width: 6, height: 6, borderRadius: 3, marginHorizontal: 1.5 },
-  pipEmpty: { backgroundColor: '#dee2e6' },
+  pips: { marginTop: 4 },
 });
