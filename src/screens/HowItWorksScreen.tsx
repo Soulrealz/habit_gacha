@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { DevPanel } from '../components/DevPanel';
 import { getGachaConfig, getRankThresholds } from '../config/gacha';
 import { RARITY_COLOURS } from '../data/characters';
 import { ART_RANK, BORDER_RANK, LORE_RANKS, MAX_RANK } from '../services/collection/rank';
@@ -151,6 +152,10 @@ export function HowItWorksScreen() {
           accessibilityLabel="Show rank borders"
         />
       </View>
+
+      {/* Gated here AND inside src/services/dev, which refuses outside a dev build. The
+          service is the real guarantee; this just keeps the panel off a production screen. */}
+      {__DEV__ ? <DevPanel /> : null}
     </ScrollView>
   );
 }

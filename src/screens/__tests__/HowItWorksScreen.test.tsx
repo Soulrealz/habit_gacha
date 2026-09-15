@@ -33,6 +33,15 @@ jest.mock('../../config/gacha', () => ({
 // reason as `mockActive` above.
 const mockSettings = { saveShouldFail: false };
 
+// DevPanel reaches services/dev -> services/db -> expo-sqlite, which cannot resolve under
+// jest. Mocked at the service seam like every other screen test does; the dev service has
+// its own suite.
+jest.mock('../../services/dev', () => ({
+  grantTickets: async () => undefined,
+  resetCollection: async () => undefined,
+  resetPity: async () => undefined,
+}));
+
 jest.mock('../../services/settings', () => ({
   getShowRankBorders: async () => true,
   setShowRankBorders: async () => {
