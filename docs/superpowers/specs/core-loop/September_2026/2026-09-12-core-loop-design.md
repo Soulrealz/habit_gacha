@@ -185,13 +185,20 @@ After Phase 0, the two verticals share no files.
 ```ts
 awardTickets(reason: string, amount: number): Promise<number>;  // returns amount ACTUALLY awarded
 spendTicket(): Promise<boolean>;                                 // false if balance is 0
+spendTicketOn(txn): Promise<boolean>;                            // same, on a caller's transaction
 getBalance(): Promise<number>;
 ```
 
 `awardTickets` returns the actually-awarded amount because the daily cap
 may clip the request. Dev 1 needs that value to render "daily cap
 reached" rather than silently misreporting the award. Dev 2 never calls
-`awardTickets`; Dev 1 never calls `spendTicket`.
+`awardTickets`; Dev 1 never calls either spend function.
+
+`spendTicketOn` was added 2026-09-15 so the summon flow can make the debit
+atomic with the character grant — see §9.1. It is purely additive: the
+three original signatures are unchanged, so nothing in the habits vertical
+was affected. `spendTicket()` is kept as the seam's documented entry point
+even though the summon flow no longer calls it.
 
 ### The roll engine
 
@@ -387,11 +394,31 @@ makes the rules testable at all.
    - A module-level in-flight guard in the summon service rejects a second
      concurrent call even if the UI guard is bypassed.
 
-   The spend, roll, and persist steps deliberately do **not** share one
-   transaction: `spendTicket` owns its own, and SQLite cannot nest
-   transactions. The residual window is a crash between spending and
-   persisting, which can lose a ticket but can never duplicate a character
-   or grant one for free.
+   The spend, roll, and persist steps share **one** transaction.
+
+   > **Revised 2026-09-15.** This originally said they deliberately do _not_
+   > share one, because `spendTicket` owned its own and SQLite cannot nest
+   > transactions — accepting "a crash between spending and persisting can
+   > lose a ticket, but can never duplicate a character or grant one free".
+   >
+   > That trade was the wrong way round for a game whose entire currency is
+   > tickets: it left a permanent, unrecoverable loss as an accepted outcome,
+   > and forced the UI to carry an apology for it.
+   >
+   > The services are now split into a `…On(txn)` core plus a wrapper that
+   > opens its own transaction — `spendTicketOn`, `recordCharacterOn` — so
+   > `performSummon` composes all of them on one `txn`. Any failure rolls the
+   > debit back with everything else, so `SummonOutcome` no longer needs to
+   > report whether the ticket survived: it always does.
+   >
+   > Note the constraint that made the split necessary rather than optional:
+   > `withWriteTransaction` is a process-global mutex that _rejects_ a nested
+   > write, so calling the public `spendTicket()` from inside another
+   > transaction is a loud error, not a deadlock.
+   >
+   > One consequence to know: the write queue re-runs its callback after a
+   > lock conflict, so a retried summon re-rolls the dice. Sound, because
+   > nothing was committed — but a roll is not fixed until it commits.
 
 2. **Database init failure.** Local-only storage makes this rare but
    unrecoverable. Initialisation is wrapped so failure renders an explicit

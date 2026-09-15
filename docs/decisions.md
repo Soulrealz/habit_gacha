@@ -5,6 +5,35 @@ re-litigated or forgotten. Newest at top.
 
 ---
 
+### 2026-09-15 — A summon is one transaction
+
+- **Decision**: `performSummon` runs spend, roll, grant and pity inside a single
+  `withWriteTransaction`. The services gained `…On(txn)` cores —
+  `spendTicketOn`, `recordCharacterOn` — with the public wrappers kept as thin callers.
+- **Why**: It was three separately-committed writes, so a failure between the debit and
+  the grant spent a ticket and produced nothing. Permanent and unrecoverable, in a game
+  whose entire currency is tickets, and it forced the UI to carry an apology for it. The
+  original spec accepted that trade explicitly; it was the wrong way round.
+- **Consequence**: `SummonOutcome`'s `failed` variant lost its `ticketSpent` field — on
+  any failure the debit rolls back, so the screen can promise the ticket is intact rather
+  than hedging.
+- **Note**: The split was necessary, not stylistic. `withWriteTransaction` is a
+  process-global mutex that _rejects_ a nested write, so calling the public
+  `spendTicket()` inside another transaction is a loud error.
+- **Note**: The write queue re-runs its callback after a lock conflict, so a retried
+  summon re-rolls the dice. Sound — nothing was committed — but a roll is not fixed until
+  it commits.
+- **Decision**: `spendTicket()` is kept despite now being unconsumed, because the spec
+  lists it as the shared seam's entry point and removing it would be a breaking change to
+  an interface the other developer may rely on. `recordCharacter()` was removed, being
+  gacha-owned with no external contract — the project's standing rule against building
+  what nothing consumes.
+- **Decision**: `spendTicketOn` is additive; the three original seam signatures are
+  unchanged, so the habits vertical is unaffected.
+- **Status**: Written and unit-tested, including the first real unit tests of the spend
+  path — splitting it out of the transaction is what made it testable without the native
+  module. **Never run on a device.**
+
 ### 2026-09-15 — CI on every push and PR to master
 
 - **Decision**: `.github/workflows/ci.yml` runs typecheck, lint, `jest --ci`, and an

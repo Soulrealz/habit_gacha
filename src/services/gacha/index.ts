@@ -1,15 +1,16 @@
+import type * as SQLite from 'expo-sqlite';
 import { getGachaConfig } from '../../config/gacha';
 import { charactersByRarity } from '../../data/characters';
 import type { Character, Rarity } from '../../types';
-import { recordCharacter } from '../collection';
-import { getDatabase, withWriteTransaction } from '../db';
-import { spendTicket } from '../tickets';
+import { recordCharacterOn } from '../collection';
+import { withWriteTransaction } from '../db';
+import { spendTicketOn } from '../tickets';
 import { pickCharacter, rollOne } from './engine';
 
 export type SummonOutcome =
   | { status: 'no_tickets' }
   | { status: 'busy' }
-  | { status: 'failed'; ticketSpent: boolean }
+  | { status: 'failed' }
   | {
       status: 'success';
       character: Character;
@@ -20,78 +21,72 @@ export type SummonOutcome =
 
 let inFlight = false;
 
-async function readPity(): Promise<number> {
-  const db = getDatabase();
-  const row = await db.getFirstAsync<{ pity_counter: number }>(
+async function readPityOn(txn: SQLite.SQLiteDatabase): Promise<number> {
+  const row = await txn.getFirstAsync<{ pity_counter: number }>(
     'SELECT pity_counter FROM player_state WHERE id = 1',
   );
   return row?.pity_counter ?? 0;
 }
 
-// Goes through the write queue even though a blind single-statement UPDATE is already
-// atomic on its own: it keeps this, the last write in the app, from contending for the
-// lock with a queued transaction at all.
-async function writePity(value: number): Promise<void> {
-  await withWriteTransaction(async (txn) => {
-    await txn.runAsync('UPDATE player_state SET pity_counter = ? WHERE id = 1', value);
-  });
+async function writePityOn(txn: SQLite.SQLiteDatabase, value: number): Promise<void> {
+  await txn.runAsync('UPDATE player_state SET pity_counter = ? WHERE id = 1', value);
 }
 
 // The only place in this vertical that calls getGachaConfig() or Math.random.
 //
-// Ordering notes, all from spec §9.1:
+// The whole summon — spend, roll, grant, pity — is ONE transaction. It used to be three
+// separate committed writes, which left a window where the ticket was debited and the
+// character never landed: a lost ticket, permanently, in an app whose entire currency is
+// tickets. Now any failure rolls the debit back with everything else, so that window
+// does not exist and there is no "your ticket was spent, sorry" state to report.
 //
-// - `inFlight` rejects a second concurrent call outright, but it is not the
-//   double-spend guard. `spendTicket` is: it reads the balance and inserts its debit
-//   inside one exclusive transaction, so two concurrent calls against a balance of 1
-//   cannot both succeed.
-// - Spend, roll, and persist deliberately do not share one transaction, because
-//   `spendTicket` owns its own and SQLite cannot nest them. The residual risk is a
-//   crash between spending and persisting: that can lose a ticket, but it can never
-//   duplicate a character or grant one free.
-// - The character is recorded BEFORE pity is advanced, and the order matters. Both are
-//   separate auto-committing writes, and either can throw SQLITE_BUSY (see the red
-//   section of docs/status/OPEN-ITEMS.md). Failing between them must land on the
-//   user's side of the ledger: this way a failure leaves pity un-advanced with the
-//   character already granted, which is mildly generous and self-corrects on the next
-//   pull. The reverse order would reset pity to 0 on a guaranteed 5★ and then fail to
-//   grant it — roughly 52 pulls of progress destroyed, silently and unrecoverably.
+// Two consequences worth knowing:
+//
+// - The services are called through their `…On(txn)` forms. Calling the public
+//   `spendTicket()` or `recordCharacter()` here would throw: `withWriteTransaction` is a
+//   process-global mutex and rejects a nested write rather than deadlocking on itself.
+// - The write queue re-runs its callback after a lock conflict, so a retried summon
+//   re-rolls the dice. That is sound because nothing was committed, but it does mean a
+//   roll is not fixed until it commits.
+//
+// `inFlight` rejects a second concurrent call outright. It is not the double-spend
+// guard — `spendTicketOn` reading the balance inside this transaction is — but it stops
+// a queue of taps building up behind a slow write.
 export async function performSummon(): Promise<SummonOutcome> {
   if (inFlight) {
     return { status: 'busy' };
   }
 
   inFlight = true;
-  let ticketSpent = false;
 
   try {
-    const spent = await spendTicket();
-    if (!spent) {
-      return { status: 'no_tickets' };
-    }
-    ticketSpent = true;
+    return await withWriteTransaction<SummonOutcome>(async (txn) => {
+      const spent = await spendTicketOn(txn);
+      if (!spent) {
+        return { status: 'no_tickets' };
+      }
 
-    const config = getGachaConfig();
-    const pity = await readPity();
-    const result = rollOne(Math.random, pity, config);
-    const character = pickCharacter(Math.random, charactersByRarity(result.rarity));
+      const config = getGachaConfig();
+      const pity = await readPityOn(txn);
+      const result = rollOne(Math.random, pity, config);
+      const character = pickCharacter(Math.random, charactersByRarity(result.rarity));
 
-    const isNew = await recordCharacter(character.id);
-    await writePity(result.newPity);
+      const isNew = await recordCharacterOn(txn, character.id);
+      await writePityOn(txn, result.newPity);
 
-    return {
-      status: 'success',
-      character,
-      rarity: result.rarity,
-      isNew,
-      pityTriggered: result.pityTriggered,
-    };
+      return {
+        status: 'success',
+        character,
+        rarity: result.rarity,
+        isNew,
+        pityTriggered: result.pityTriggered,
+      };
+    });
   } catch (error) {
-    // Reported rather than thrown so the screen can say whether the ticket was
-    // actually consumed. `ticketSpent: true` is the case worth telling the user
-    // about — the debit committed but the character never landed.
+    // The transaction rolled back, so the ticket was not spent. Reported rather than
+    // thrown so the screen can say exactly that.
     console.error('Summon failed', error);
-    return { status: 'failed', ticketSpent };
+    return { status: 'failed' };
   } finally {
     inFlight = false;
   }

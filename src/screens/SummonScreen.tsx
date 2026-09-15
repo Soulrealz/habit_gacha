@@ -68,11 +68,9 @@ export function SummonScreen() {
       } else if (outcome.status === 'busy') {
         setMessage('Already summoning.');
       } else if (outcome.status === 'failed') {
-        setMessage(
-          outcome.ticketSpent
-            ? 'Something went wrong and your ticket was spent. Sorry — please report this.'
-            : 'Something went wrong. Your ticket was not spent; try again.',
-        );
+        // The whole summon is one transaction, so a failure rolled the debit back too.
+        // The ticket is always still there — this can promise that without hedging.
+        setMessage('Something went wrong. Your ticket was not spent — try again.');
       } else {
         // Cleared so a leftover message cannot end up captioning a successful pull.
         setMessage(null);

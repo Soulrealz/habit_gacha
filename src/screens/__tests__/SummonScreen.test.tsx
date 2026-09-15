@@ -42,7 +42,10 @@ jest.mock('../../services/gacha', () => {
         const character = pickCharacter(store.rng, charactersByRarity(result.rarity));
 
         if (store.failRecord) {
-          return { status: 'failed', ticketSpent: true };
+          // The real service runs the whole summon in one transaction, so a failure
+          // rolls the debit back too. Mirror that: the ticket comes back.
+          store.balance += 1;
+          return { status: 'failed' };
         }
 
         const isNew = !store.owned[character.id];
@@ -172,14 +175,18 @@ describe('Summon screen messages', () => {
     expect(textContent(renderer)).toContain('No tickets yet');
   });
 
-  it('says so when a pull fails after the ticket was spent', async () => {
+  it('promises the ticket is intact when a pull fails', async () => {
     store.balance = 1;
     store.failRecord = true;
     const renderer = await renderAndSettle(<SummonScreen />);
 
     await press(renderer, SUMMON);
 
-    expect(textContent(renderer)).toContain('your ticket was spent');
+    const text = textContent(renderer);
+    expect(text).toContain('Your ticket was not spent');
+    // And the balance really is back, not just claimed to be.
+    expect(text).toContain('1');
+    expect(store.balance).toBe(1);
   });
 
   it('clears a stale message when a later pull succeeds', async () => {
@@ -187,7 +194,7 @@ describe('Summon screen messages', () => {
     store.failRecord = true;
     const renderer = await renderAndSettle(<SummonScreen />);
     await press(renderer, SUMMON);
-    expect(textContent(renderer)).toContain('your ticket was spent');
+    expect(textContent(renderer)).toContain('Your ticket was not spent');
 
     store.failRecord = false;
     store.balance = 1;
@@ -195,7 +202,7 @@ describe('Summon screen messages', () => {
     await press(renderer, SUMMON);
 
     const text = textContent(renderer);
-    expect(text).not.toContain('your ticket was spent');
+    expect(text).not.toContain('Your ticket was not spent');
     expect(text).toContain('NEW');
   });
 });
