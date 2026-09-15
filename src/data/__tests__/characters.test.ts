@@ -50,3 +50,26 @@ describe('RARITY_COLOURS', () => {
     expect(new Set(colours).size).toBe(colours.length);
   });
 });
+
+describe('character rank content', () => {
+  it('gives every character exactly three lore entries, none blank', () => {
+    for (const character of CHARACTERS) {
+      expect(character.lore).toHaveLength(3);
+      for (const entry of character.lore) {
+        expect(entry.trim().length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('gives every character an alternate sprite distinct from the base one', () => {
+    for (const character of CHARACTERS) {
+      expect(character.altSprite).toBeDefined();
+      expect(character.altSprite).not.toBe(character.sprite);
+    }
+  });
+
+  it('does not reuse one character lore entry on another character', () => {
+    const all = CHARACTERS.flatMap((character) => character.lore);
+    expect(new Set(all).size).toBe(all.length);
+  });
+});

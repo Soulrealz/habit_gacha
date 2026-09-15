@@ -1,6 +1,9 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { getGachaConfig } from '../config/gacha';
+import { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { getGachaConfig, getRankThresholds } from '../config/gacha';
 import { RARITY_COLOURS } from '../data/characters';
+import { ART_RANK, BORDER_RANK, LORE_RANKS, MAX_RANK } from '../services/collection/rank';
+import { getShowRankBorders, setShowRankBorders } from '../services/settings';
 import type { Rarity } from '../types';
 
 /**
@@ -31,7 +34,38 @@ export function formatPercent(rate: number): string {
  * the banner says so — see `docs/next-steps.md` for the two ways that misleads you.
  */
 export function HowItWorksScreen() {
+  const thresholds = getRankThresholds();
+  const rankRarities: Rarity[] = [5, 4, 3];
+
   const config = getGachaConfig();
+
+  const [showBorders, setShowBorders] = useState(true);
+
+  // A plain useEffect, not useFocusEffect: this setting is changed only here, so there
+  // is nothing to re-read on focus, and useFocusEffect would need the screen to be
+  // inside a navigator for its tests to run.
+  useEffect(() => {
+    let active = true;
+    getShowRankBorders()
+      .then((value) => {
+        if (active) {
+          setShowBorders(value);
+        }
+      })
+      .catch((error) => console.error('Reading the rank border setting failed', error));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const toggleBorders = (value: boolean) => {
+    setShowBorders(value);
+    setShowRankBorders(value).catch((error) => {
+      console.error('Saving the rank border setting failed', error);
+      // Put the switch back rather than leaving it lying about what was saved.
+      setShowBorders(!value);
+    });
+  };
 
   // No config field holds this: 3★ is whatever is left over. Derived rather than
   // declared so it cannot disagree with the other two.
@@ -85,6 +119,38 @@ export function HowItWorksScreen() {
         The count resets every time you pull a 5★, whether you earned it on the rates or on the
         guarantee.
       </Text>
+
+      <Text style={styles.heading}>Duplicates and ranks</Text>
+      <Text style={styles.body}>
+        Pulling a character you already own is not wasted. Copies raise that character&apos;s rank,
+        up to Rank {MAX_RANK}.
+      </Text>
+      <Text style={styles.body}>
+        Ranks 1 to {LORE_RANKS} each reveal something about them. Rank {BORDER_RANK} unlocks a
+        border, and Rank {ART_RANK} unlocks alternate artwork.
+      </Text>
+      <Text style={styles.body}>
+        Rarer characters need fewer copies, because they arrive far less often. Copies for each
+        rank:
+      </Text>
+      {rankRarities.map((rarity) => (
+        <View key={rarity} style={styles.rateRow}>
+          <Text style={[styles.rateLabel, { color: RARITY_COLOURS[rarity] }]}>
+            {'★'.repeat(rarity)}
+          </Text>
+          <Text style={styles.rateValue}>{thresholds[rarity].join(' · ')}</Text>
+        </View>
+      ))}
+
+      <Text style={styles.heading}>Display</Text>
+      <View style={styles.settingRow}>
+        <Text style={styles.body}>Show rank borders</Text>
+        <Switch
+          value={showBorders}
+          onValueChange={toggleBorders}
+          accessibilityLabel="Show rank borders"
+        />
+      </View>
     </ScrollView>
   );
 }
@@ -109,4 +175,5 @@ const styles = StyleSheet.create({
   },
   rateLabel: { fontSize: 18 },
   rateValue: { fontSize: 16, fontWeight: '600', color: '#343a40' },
+  settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 });

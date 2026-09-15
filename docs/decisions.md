@@ -5,11 +5,80 @@ re-litigated or forgotten. Newest at top.
 
 ---
 
+### 2026-09-16 — Two traps worth recording from the character-ranks review
+
+- **The boolean settings encoding is deliberately fail-open.** `getShowRankBorders()` is
+  `(await getSetting(KEY)) !== 'false'`, so any unexpected value — missing row, a stray
+  string, a half-written row — reads as ON. That is correct for a cosmetic border: hiding
+  a reward the player already earned would read as a bug, not a safe default. It is
+  **wrong for ad consent**, where a corrupt or half-written row must never default to
+  "consented". The next implementer will copy the nearest precedent, and this is it. When
+  a second boolean setting lands, add an explicit `getBooleanSetting(key, fallback)` with
+  a strict `'true'`/`'false'` comparison rather than copying this one — but don't build
+  that helper now, nothing consumes it, same standing rule that left `getAwardedToday()`
+  unbuilt (see `docs/status/OPEN-ITEMS.md`).
+- **Streak state must not live in the `settings` table.** Streak *preferences* could, but
+  current length / longest streak / last-qualifying-date are gameplay data that wants
+  querying, not stringified key/value blobs. `docs/next-steps.md` already notes the
+  ticket ledger's `log_date` can answer "days the cap was maxed" from existing data.
+  Putting `settings['current_streak'] = '7'` in the settings table would create
+  integers-as-TEXT and a second source of truth competing with the ledger — exactly the
+  failure mode this feature's "derive rank, don't store it" decision (below) was built to
+  avoid.
+
+### 2026-09-16 — Character ranks: duplicates drive rank, not a currency
+
+- **Decision**: A duplicate pull raises that character's rank (0–5) rather than doing
+  nothing. Rank is **derived from `owned_characters.copies`** in `src/services/collection/rank.ts`
+  (`rankFor`), not stored anywhere — there is no second source of truth to drift. Ranks 1–3
+  each reveal one lore entry; Rank 4 unlocks a decorative border; Rank 5 swaps in alternate
+  artwork. Copies-per-rank ladders live in `RANK_THRESHOLDS` in `src/config/gacha.ts`, read
+  through `getRankThresholds()`, and are rarity-shaped — a 5★ needs far fewer copies than a
+  3★, because a 5★ arrives far less often.
+- **Alternative rejected: shards.** Melting duplicates into a spendable currency was
+  considered and rejected knowingly, with the 5★ scarcity problem weighed first (see the
+  spec's §8). Direct duplicates keep rank a pure function of `copies` and keep the
+  "investment in this specific character" fantasy intact; shards would have needed a second
+  source of truth and a whole separate spend economy for a v1 that hasn't yet proven the
+  loop is worth extending.
+- **Alternative rejected: persisting rank in a new `character_progress` table.** Would have
+  bought a "rank went up" NEW-badge and a future shard migration path. Shards were rejected,
+  so today it would only add a table that can disagree with `copies` for no benefit. Revisit
+  if a rank-up notification is designed — see the "known gap" below.
+- **Decision: the border toggle is global, not per-character.** A row and a control per
+  character was rejected as a lot of surface for a cosmetic most players set once. The
+  setting lives in a new `settings` key/value table (migration 1 in `src/services/db/schema.ts`,
+  append-only, `MIGRATIONS[0]` untouched) and is read/written through
+  `src/services/settings/` — `getShowRankBorders` / `setShowRankBorders`. A missing row
+  defaults to borders on.
+- **Supply-sensitivity warning, written down because it will bite the roster-growth task**:
+  `RANK_THRESHOLDS` is calibrated against the current 9-character roster (2×5★, 3×4★, 4×3★).
+  Every character added to `src/data/characters.ts` dilutes per-character pull odds within
+  its rarity, which stretches every rank ladder for that rarity. Growing the roster and
+  re-deriving these thresholds are the same task, not two — see `docs/next-steps.md` §1 and
+  the spec's §3.
+- **Known gap, deliberate**: nothing tells a player a rank went up at the moment it happens.
+  It is discoverable only by opening the character detail screen. A NEW-badge for rank-ups
+  would need a "last seen rank" marker and the `character_progress` table rejected above —
+  deferred, not forgotten.
+- **Status**: implemented across 7 tasks (T1 data/types, T2 `rankFor`/`copiesToNextRank`/
+  `unlockedLore`, T3 the `settings` migration and service, T4 `CharacterDetailScreen`, T5 the
+  Collection→Detail stack navigator and grid rank pips, T6 the `RankBorder` component and its
+  toggle, T7 this screen's copy). 201/201 tests passing, `tsc --noEmit` and `expo lint` clean.
+  **Never run on a device** — see `docs/status/OPEN-ITEMS.md` for the full list of what that
+  leaves unverified, including that Collection→Detail navigation has never actually been
+  mounted by a test and that the `settings` migration's SQL has only been inspected, never
+  executed.
+
 ### 2026-09-15 — A "How it works" tab, with every number read from the config
 
 - **Decision**: A fourth bottom tab, `HowItWorksScreen`, explaining the daily ticket cap,
   the pull rates and the pity guarantee. It is purely presentational: no database reads,
   no state, no effects, so it cannot spin, fail, or go stale.
+- **Extended 2026-09-16**: the character-ranks branch added a "show rank borders" toggle
+  to this screen, which reads and writes the `settings` table. The screen is no longer
+  purely presentational — see the entry above and `docs/next-steps.md`. This decision's
+  reasoning for reading every number from `getGachaConfig()` at render time is unaffected.
 - **Why**: The app taught the 5/day cap only by hitting it, and taught the guarantee not
   at all. `docs/next-steps.md` §4 lists this as the one item with no dependency on the
   undesigned economy, so it could be built without prejudging what duplicates convert

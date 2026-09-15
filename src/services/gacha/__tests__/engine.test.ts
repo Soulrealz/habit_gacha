@@ -93,9 +93,9 @@ describe('rollOne distribution', () => {
 
 describe('pickCharacter', () => {
   const pool: Character[] = [
-    { id: 'a', name: 'A', rarity: 3, sprite: 1 },
-    { id: 'b', name: 'B', rarity: 3, sprite: 2 },
-    { id: 'c', name: 'C', rarity: 3, sprite: 3 },
+    { id: 'a', name: 'A', rarity: 3, sprite: 1, altSprite: 4, lore: ['a1', 'a2', 'a3'] },
+    { id: 'b', name: 'B', rarity: 3, sprite: 2, altSprite: 5, lore: ['b1', 'b2', 'b3'] },
+    { id: 'c', name: 'C', rarity: 3, sprite: 3, altSprite: 6, lore: ['c1', 'c2', 'c3'] },
   ];
 
   it('picks the first character when the roll is at the bottom', () => {

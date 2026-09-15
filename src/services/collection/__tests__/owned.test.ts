@@ -2,9 +2,9 @@ import { countOwned, toOwnedCopies } from '../owned';
 import type { Character, OwnedCharacter } from '../../../types';
 
 const roster: Character[] = [
-  { id: 'a', name: 'A', rarity: 3, sprite: 1 },
-  { id: 'b', name: 'B', rarity: 4, sprite: 2 },
-  { id: 'c', name: 'C', rarity: 5, sprite: 3 },
+  { id: 'a', name: 'A', rarity: 3, sprite: 1, altSprite: 4, lore: ['a1', 'a2', 'a3'] },
+  { id: 'b', name: 'B', rarity: 4, sprite: 2, altSprite: 5, lore: ['b1', 'b2', 'b3'] },
+  { id: 'c', name: 'C', rarity: 5, sprite: 3, altSprite: 6, lore: ['c1', 'c2', 'c3'] },
 ];
 
 function row(characterId: string, copies: number): OwnedCharacter {

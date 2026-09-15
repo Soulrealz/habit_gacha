@@ -1,6 +1,7 @@
 import { CollectionScreen } from '../CollectionScreen';
 import { CHARACTERS, RARITY_COLOURS } from '../../data/characters';
-import { renderAndSettle, textContent } from '../../test-utils/render';
+import { RANK_THRESHOLDS } from '../../config/gacha';
+import { press, pressablesByLabel, renderAndSettle, textContent } from '../../test-utils/render';
 import type { OwnedCharacter } from '../../types';
 
 jest.mock('@react-navigation/native', () => ({
@@ -123,5 +124,34 @@ describe('Collection screen failure handling', () => {
     expect(text).toContain(`Collection 0 / ${CHARACTERS.length}`);
 
     error.mockRestore();
+  });
+});
+
+describe('rank on the collection grid', () => {
+  it('shows filled pips matching the character rank', async () => {
+    const character = CHARACTERS[0];
+    store.rows = [own(character.id, RANK_THRESHOLDS[character.rarity][1])];
+
+    const renderer = await renderAndSettle(<CollectionScreen />);
+    const pips = renderer.root.findAllByProps({ testID: `pips-${character.id}` });
+
+    expect(pips[0].props.accessibilityLabel).toBe('Rank 2 of 5');
+  });
+
+  it('opens the character when an owned cell is pressed', async () => {
+    const character = CHARACTERS[0];
+    store.rows = [own(character.id)];
+    const onOpen = jest.fn();
+
+    const renderer = await renderAndSettle(<CollectionScreen onOpen={onOpen} />);
+    await press(renderer, `Open ${character.name}`);
+
+    expect(onOpen).toHaveBeenCalledWith(character.id);
+  });
+
+  it('does not offer to open a character that is not owned', async () => {
+    const renderer = await renderAndSettle(<CollectionScreen onOpen={jest.fn()} />);
+
+    expect(Object.keys(pressablesByLabel(renderer))).toHaveLength(0);
   });
 });

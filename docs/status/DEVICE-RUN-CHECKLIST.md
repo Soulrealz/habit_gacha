@@ -80,6 +80,43 @@ hold against real SQLite. Step 7 is the one nothing has ever tested.
 - [ ] 8. **Tap Summon rapidly with exactly one ticket.** Exactly one pull resolves and the
       balance never goes negative.
 
+## Phase 3b — Character ranks (2026-09-16, never run on a device)
+
+Everything below is new since the last device run and is unit-tested only. Dev pity (5)
+gets you a 5★ fast, but **R4 and R5 on a 5★ need 5–6 copies of the same 5★**, which the
+daily cap makes impossible in one sitting even with pity maxed every day — `RANK_THRESHOLDS`
+in `src/config/gacha.ts` is deliberately not dev-overridden (see `docs/status/OPEN-ITEMS.md`
+"Decisions made under uncertainty"). The practical route to seeing R4/R5 is **temporarily
+lowering `RANK_THRESHOLDS`** as a local uncommitted edit — e.g. `5: [1, 1, 2, 2, 3]` — and
+reverting before any PR, same pattern as raising `dailyTicketCap` above.
+
+- [ ] 1. From the Collection grid, **tap an owned character.** It navigates to a detail
+      screen (`CharacterDetailScreen`) showing its art, name, rarity and copy count. ←
+      _Collection → Detail navigation has never been mounted by any test — this is the
+      first time it runs at all, on real `@react-navigation/native-stack`._
+- [ ] 2. **Tap an unowned (`???`) cell.** Nothing happens — no navigation, no crash.
+- [ ] 3. Pull duplicates of the same character until it crosses a rank threshold (lower
+      `RANK_THRESHOLDS` per the note above to make this fast). Reopen its detail screen:
+      the newly-unlocked lore entry appears, and locked future ranks still read "Locked".
+- [ ] 4. In the Collection grid, an owned character shows **rank pips** next to its cell
+      matching its current rank. An unowned cell shows neither pips nor a NEW badge.
+- [ ] 5. Push a character to rank 4. Its detail screen shows the decorative border. (The
+      grid never shows it — the grid renders rank pips only.)
+- [ ] 6. On the How it works tab, toggle **"Show rank borders" off.** The rank-4+ border
+      disappears from the detail screen without a restart. Toggle it back on — it
+      reappears. ← _the `settings` table (migration 1) backing this toggle has only ever
+      been exercised through a mocked db module; this is its first real SQLite write._
+- [ ] 7. **Fully close and reopen the app** after toggling the border off. The setting is
+      still off. (Proves the `settings` migration actually persisted, not just the in-memory
+      state.)
+- [ ] 8. Push a character to rank 5. Its detail screen shows the alternate artwork in place
+      of the normal sprite.
+- [ ] 9. On the How it works tab, the new **"Duplicates and ranks"** section (above
+      "Display") shows a copies-per-rank row for ★★★★★ / ★★★★ / ★★★ matching the numbers in
+      `RANK_THRESHOLDS` — including any local edit made for step 3 above, which is the
+      point: this screen must never show numbers that don't match what the game is actually
+      running.
+
 ## Phase 4 — The cross-vertical race
 
 Nothing has ever exercised this, and it is the one case the in-process write queue was
