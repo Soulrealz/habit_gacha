@@ -170,14 +170,12 @@ Deliberately out of scope for v1. Worth noting it is not independent of the two 
 above: a streak that pays tickets multiplies the economy, so its design depends on what
 tickets ultimately buy. Sequence it after them.
 
-### A screen explaining the rules
+### ✅ A screen explaining the rules — built
 
-Wanted: somewhere that explains the pull rates, the pity guarantee and the daily cap.
-
-The app currently teaches the 5/day cap only by hitting it. Self-contained, no schema, no
-economy interaction — it can be built any time. One constraint: every number it displays
-must be read from `src/config/gacha.ts`, never retyped into the copy, or the docs and the
-behaviour will drift the first time a rate is tuned.
+`HowItWorksScreen`, a fourth tab, added 2026-09-15. Rates, pity and the daily cap, every
+number read from `getGachaConfig()` at render time and tested against a config the app has
+never shipped so it cannot drift. A `__DEV__` banner says the displayed rates are not the
+real economy. Unverified on a device: the fourth tab's effect on the tab bar.
 
 ## Decisions made under uncertainty — revisit if you disagree
 

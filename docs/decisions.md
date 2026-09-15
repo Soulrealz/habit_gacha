@@ -5,6 +5,39 @@ re-litigated or forgotten. Newest at top.
 
 ---
 
+### 2026-09-15 — A "How it works" tab, with every number read from the config
+
+- **Decision**: A fourth bottom tab, `HowItWorksScreen`, explaining the daily ticket cap,
+  the pull rates and the pity guarantee. It is purely presentational: no database reads,
+  no state, no effects, so it cannot spin, fail, or go stale.
+- **Why**: The app taught the 5/day cap only by hitting it, and taught the guarantee not
+  at all. `docs/next-steps.md` §4 lists this as the one item with no dependency on the
+  undesigned economy, so it could be built without prejudging what duplicates convert
+  into.
+- **Constraint, and the reason the screen has tests at all**: every number is read from
+  `getGachaConfig()` at render time and none may be retyped into the copy. The 3★ rate is
+  the case that proves it — no field in `GachaConfig` holds it, so it is computed as
+  `1 - fiveStarRate - fourStarRate`. The guarantee copy counts from `pityThreshold`, and
+  says the *next* summon after `pityThreshold - 1` misses is the guaranteed one, matching
+  `rollOne`'s `nextPity >= threshold` rather than approximating it.
+- **How that is enforced**: the load-bearing test renders against a config the app has
+  never shipped (7% / 23% / pity 33 / cap 9) and asserts the rendered text tracks it,
+  including the derived 70%. A hard-coded number fails it. Verified by mutation: replacing
+  one interpolation with its literal turns the suite red.
+- **Decision**: a `__DEV__` banner reading "Development rates — these are not the real
+  economy." Reading `getGachaConfig()` means a dev build honestly displays 25% and pity 5;
+  honest but misleading, and `docs/next-steps.md` warns that judging the loop from those
+  numbers misleads in both directions. The banner costs nothing in production.
+- **Alternatives rejected**: a header "?" button on the Summon screen (needs a stack
+  navigator the repo does not have), and a `<Modal>` inside `SummonScreen` (touches the
+  gacha vertical's file, and modals are missable). The tab is one additive line.
+- **Note**: `src/navigation/index.tsx` is shared foundation rather than either vertical's
+  file. The change is one import and one `<Tab.Screen>`, additive, touching no existing
+  screen — flagged here rather than made quietly.
+- **Status**: 10 new tests, 160/160 passing, `tsc --noEmit` and `expo lint` clean.
+  **Not yet seen on a device** — the fourth tab's effect on the tab bar at narrow widths
+  is unverified.
+
 ### 2026-09-15 — The ✓ tracks live progress, not the award
 
 - **Decision**: `TodayScreen` renders the tick from `count >= target` rather than from

@@ -100,18 +100,25 @@ Note also that the ledger already records `log_date` on every row, so "days the 
 maxed" is answerable from existing data with no schema change. "Days logged in" is not —
 nothing currently records app opens.
 
-### 4. A screen explaining the rules — any time
+### 4. ✅ A screen explaining the rules — done
 
-Wanted: somewhere explaining pull rates, the pity guarantee and the daily cap. The app
-currently teaches the 5/day cap only by hitting it.
+Built 2026-09-15 as `src/screens/HowItWorksScreen.tsx`, a fourth bottom tab. It states
+the daily ticket cap, the three pull rates and the pity guarantee, and it is purely
+presentational — no database reads, so no spinner and no error path.
 
-Self-contained: no schema, no economy interaction, no dependency on anything above. Good
-work to slot in whenever.
+The hard constraint held: every number is read from `getGachaConfig()` at render time and
+none is retyped into the copy. The 3★ rate is derived as `1 - fiveStarRate -
+fourStarRate`, since no config field holds it. A test renders the screen against a config
+the app has never shipped and asserts the text tracks it, so hard-coding a number turns
+the suite red.
 
-**One hard constraint.** Every number it displays must be read from
-`src/config/gacha.ts` at runtime, never retyped into the copy. The moment a rate is tuned
-the screen would otherwise lie, and it is exactly the sort of drift nobody notices for
-months. Read `getGachaConfig()` so it also tells the truth in a dev build.
+`__DEV__` builds get a banner saying the rates on screen are not the real economy —
+`getGachaConfig()` honestly returns 25% and pity 5 there, which is exactly the misreading
+this file warns about above.
+
+Still unseen on a device: whether a fourth tab crowds the tab bar at narrow widths.
+
+See `docs/decisions.md`, entry of the same date.
 
 ## Things deliberately not being done
 
