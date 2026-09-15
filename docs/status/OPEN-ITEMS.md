@@ -97,10 +97,10 @@ Consequences worth knowing:
 
 ## Next steps
 
-**Both verticals are now written** (2026-09-15), plus the write-serialisation fix above.
-The habits vertical is committed on `master`; the gacha vertical and the write queue sit
-**uncommitted in the working tree**. Together they pass 89/89 tests, `tsc --noEmit`,
-`expo lint`, and an Android export.
+**Both verticals are written** (2026-09-15), plus the write-serialisation fix above, the
+screen tests, and the midnight-rollover fix. Everything through the screen tests is
+committed on `master`; the rollover fix sits **uncommitted in the working tree**.
+Together they pass 139/139 tests, `tsc --noEmit`, `expo lint`, and an Android export.
 
 **Nothing has been run on a device.** Both plans end in a device walkthrough, and
 **11 of those 15 steps are now covered by screen tests** that drive the real screens
@@ -120,15 +120,14 @@ Decisions taken while building each, with the alternatives weighed:
 - `docs/status/2026-09-15-gacha-vertical-decisions.md`
 - `docs/status/2026-09-15-write-serialisation-decisions.md`
 - `docs/status/2026-09-15-screen-tests-decisions.md`
+- `docs/status/2026-09-15-midnight-rollover-decisions.md`
 
-That leaves, in rough priority order. **All three need something this machine does not
-have** — a device, or art:
+That leaves, and **both need something this machine does not have** — a device, or art:
 
 1. **The first device run.** It exercises the whole core loop — earn a ticket on Today,
    spend it on Summon, see it in Collection — clearing the four checks above and the two
    cold-restart steps at once. Still the highest-value item by a distance.
-2. **Midnight rollover** (see Known-minor below). Needs a design step first.
-3. Real character art. All nine sprites in `assets/characters/` are copies of
+2. Real character art. All nine sprites in `assets/characters/` are copies of
    `splash-icon.png`, sitting at their final paths so dropping real PNGs over them
    needs no code change.
 
@@ -159,17 +158,11 @@ Clear the four checks above when you get there, then delete that section from th
 
 ## Known-minor
 
-All three previously listed here are done (2026-09-15): the `clampAward(10, 0, 5)` case
-is covered, both redundant `.gitkeep` files are deleted, and `expo-status-bar` is
-uninstalled.
-
-One known defect remains, carried over from the habits vertical:
-
-- **Midnight rollover.** With the app left open across midnight, the screens keep
-  rendering yesterday's logs while taps write to the new date, so counts appear to reset
-  mid-session with no explanation. Fixing it properly means an `AppState` listener and a
-  date watch — new behaviour the spec does not describe, so it wants a design step rather
-  than a drive-by patch.
+Nothing outstanding. All previously listed items are done (2026-09-15): the
+`clampAward(10, 0, 5)` case is covered, both redundant `.gitkeep` files are deleted,
+`expo-status-bar` is uninstalled, and **midnight rollover is fixed** — `TodayScreen` now
+watches the local date via `useCurrentDate` and re-reads with a notice when it changes.
+See `docs/status/2026-09-15-midnight-rollover-decisions.md`.
 
 ## Where the detail lives
 

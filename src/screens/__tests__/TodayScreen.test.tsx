@@ -1,9 +1,9 @@
-import type { ReactTestRenderer } from 'react-test-renderer';
+import { act, type ReactTestRenderer } from 'react-test-renderer';
 import { TodayScreen } from '../TodayScreen';
 import { GYM_HABITS } from '../../data/habits';
 import type { Habit } from '../../types';
 import { GACHA_CONFIG } from '../../config/gacha';
-import { press, renderAndSettle, textContent } from '../../test-utils/render';
+import { press, renderAndSettle, settle, textContent } from '../../test-utils/render';
 
 // Mirrors useFocusEffect closely enough for a mounted screen: the real one also keys
 // its internal useEffect on the callback identity. Inlined rather than shared, because
@@ -192,5 +192,70 @@ describe('Today screen failure handling', () => {
 
     error.mockRestore();
     habits.adjustHabitCount = original;
+  });
+});
+
+describe('Today screen midnight rollover', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 8, 15, 23, 59, 50, 0));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  // The fake store is keyed by habit id, so clearing it is what "the log_date moved on"
+  // means here — the new day genuinely has no rows yet.
+  function theDayTurnsOver() {
+    store.counts = {};
+    store.completedAt = {};
+  }
+
+  async function crossMidnight() {
+    await act(async () => {
+      jest.advanceTimersByTime(10_000);
+    });
+    await settle();
+  }
+
+  it('resets the visible counts and explains why, with no tap', async () => {
+    const renderer = await renderAndSettle(<TodayScreen />);
+    await press(renderer, add(10));
+    expect(textContent(renderer)).toContain('10 / 10 reps');
+    expect(textContent(renderer)).toContain('Pull-ups ✓');
+
+    theDayTurnsOver();
+    await crossMidnight();
+
+    const text = textContent(renderer);
+    expect(text).toContain('0 / 10 reps');
+    expect(text).not.toContain('Pull-ups ✓');
+    expect(text).toContain('It’s a new day');
+  });
+
+  it('leaves the ticket balance alone, because it is not date-scoped', async () => {
+    const renderer = await renderAndSettle(<TodayScreen />);
+    await press(renderer, add(10));
+    expect(textContent(renderer)).toContain('🎟 1');
+
+    theDayTurnsOver();
+    await crossMidnight();
+
+    expect(textContent(renderer)).toContain('🎟 1');
+  });
+
+  it('counts the next tap from zero instead of appearing to lose work', async () => {
+    const renderer = await renderAndSettle(<TodayScreen />);
+    await press(renderer, add(10));
+
+    theDayTurnsOver();
+    await crossMidnight();
+
+    await press(renderer, add(5));
+
+    const text = textContent(renderer);
+    expect(text).toContain('5 / 10 reps');
+    expect(text).not.toContain('It’s a new day');
   });
 });

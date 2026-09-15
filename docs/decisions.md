@@ -5,6 +5,28 @@ re-litigated or forgotten. Newest at top.
 
 ---
 
+### 2026-09-15 — The Today screen watches the local date
+
+- **Decision**: `useCurrentDate` in `src/lib/` watches for the local date changing via a
+  self-re-arming midnight timer plus an `AppState` listener, and `TodayScreen` re-reads
+  and posts a notice when it changes.
+- **Why**: `today()` is called fresh on every write, so writes were always correct — but
+  the screen never re-read, so crossing midnight left stale counts on screen until the
+  next tap. The reset then appeared to be _caused by the tap_, which reads as the app
+  eating the user's work. The `AppState` trigger matters more than the timer: most users
+  close the app at night, so the timer never fires.
+- **Decision**: Refresh **and** explain, rather than refreshing silently. A silent reset
+  is still an unexplained reset, and the cap refreshing is the good half of the news.
+- **Scope**: `TodayScreen` only. `getBalance()` is `SUM(delta)` with no date filter, so
+  the balance never resets and neither gacha screen renders date-scoped data. This was
+  assumed to be a shared cross-vertical change until the code was read.
+- **Not fixed**: `adjustHabitCount` captures `logDate` once, so midnight falling between
+  that line and `awardTickets` puts the log on day N and the ticket on day N+1. Closing
+  it means a breaking change to the shared ticket seam for a sub-millisecond window.
+- **Status**: Written and unit-tested; **never run on a device.**
+
+---
+
 ### 2026-09-15 — Screen tests are part of v1 after all
 
 - **Decision**: The three screens and `HabitRow` are covered by `react-test-renderer`

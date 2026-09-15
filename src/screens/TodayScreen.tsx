@@ -1,13 +1,16 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { HabitRow } from '../components/HabitRow';
 import { GYM_HABITS } from '../data/habits';
+import { useCurrentDate } from '../lib/useCurrentDate';
 import { adjustHabitCount, getTodayLogs } from '../services/habits';
 import { getBalance } from '../services/tickets';
 import type { Habit, HabitLog } from '../types';
 
 type Notice = { text: string; tone: 'info' | 'error' };
+
+const ROLLOVER_NOTICE = 'It’s a new day — habits reset and your ticket cap is refreshed.';
 
 export function TodayScreen() {
   const [logs, setLogs] = useState<Record<string, HabitLog> | null>(null);
@@ -17,6 +20,11 @@ export function TodayScreen() {
   // Monotonic generation counter: two refreshes can be in flight at once and the
   // slower one must not paint its older snapshot over the newer one.
   const generation = useRef(0);
+  const currentDate = useCurrentDate();
+  const lastSeenDate = useRef(currentDate);
+  // Set while a rollover notice is showing, so the focus effect does not wipe it when
+  // the user comes back from another tab.
+  const rolloverPending = useRef(false);
 
   // The balance is re-read from the ledger after every adjustment rather than
   // tracked locally, so the number on screen can never drift from the truth.
@@ -36,12 +44,28 @@ export function TodayScreen() {
   // function and logs an error.
   useFocusEffect(
     useCallback(() => {
-      setNotice(null);
+      if (!rolloverPending.current) {
+        setNotice(null);
+      }
       refresh().catch(() => {
         setNotice({ text: 'Could not load today’s habits.', tone: 'error' });
       });
     }, [refresh]),
   );
+
+  // Re-reads before the user touches anything. Without this the stale counts survive
+  // until the next tap, and the reset then looks like the tap destroyed their work.
+  useEffect(() => {
+    if (lastSeenDate.current === currentDate) {
+      return;
+    }
+    lastSeenDate.current = currentDate;
+    rolloverPending.current = true;
+    setNotice({ text: ROLLOVER_NOTICE, tone: 'info' });
+    refresh().catch(() => {
+      setNotice({ text: 'Could not load today’s habits.', tone: 'error' });
+    });
+  }, [currentDate, refresh]);
 
   const handleAdd = useCallback(
     async (habit: Habit, amount: number) => {
@@ -52,6 +76,8 @@ export function TodayScreen() {
         return;
       }
       setBusy(true);
+      // The user has acted on the new day, so a rollover notice has served its purpose.
+      rolloverPending.current = false;
       setNotice(null);
 
       try {

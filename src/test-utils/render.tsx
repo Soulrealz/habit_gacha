@@ -3,11 +3,30 @@
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { Text } from 'react-native';
 
+// Every renderer these helpers create, unmounted after each test.
+//
+// Without this the suite HANGS rather than fails: `useCurrentDate` arms a real
+// setTimeout for the next midnight, and a pending timer hours out keeps the jest worker
+// alive long after the tests have passed. Unmounting runs the hook's cleanup, which
+// clears it. Registering the hook here rather than in each test file means a new screen
+// test cannot forget it.
+const mounted: ReactTestRenderer[] = [];
+
+afterEach(() => {
+  while (mounted.length > 0) {
+    const renderer = mounted.pop();
+    act(() => {
+      renderer?.unmount();
+    });
+  }
+});
+
 export function render(element: React.ReactElement): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(element);
   });
+  mounted.push(renderer);
   return renderer;
 }
 
@@ -17,6 +36,7 @@ export async function renderAndSettle(element: React.ReactElement): Promise<Reac
   await act(async () => {
     renderer = create(element);
   });
+  mounted.push(renderer);
   return renderer;
 }
 

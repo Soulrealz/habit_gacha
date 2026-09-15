@@ -25,6 +25,9 @@ pulling for pixel-art/anime-style character sprites to collect.
   `CollectionScreen`. Sprites are placeholders at their final paths.
 - The core loop is therefore complete in code: earn tickets on Today, spend them on
   Summon, view results in Collection. No ad logic yet — deferred past v1.
+- `TodayScreen` watches the local date through `useCurrentDate` (`src/lib/`), so crossing
+  midnight resets the day's counts on screen with a notice rather than silently, after
+  the user's next tap.
 - Everything above is statically verified only. Nothing has ever run on a device —
   see `docs/status/OPEN-ITEMS.md` for what remains unconfirmed, including a
   foundation-level `busy_timeout` gap that both verticals work around locally.
