@@ -1,0 +1,55 @@
+name: CI
+
+# master is trunk and work arrives by PR, so both are gated.
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# A new push supersedes an in-flight run on the same branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Typecheck, lint, test, bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Matches the version this project is developed against.
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npx expo lint
+
+      # --ci makes jest fail rather than write new snapshots. The suite must also exit on
+      # its own: a leaked timer used to leave the worker hanging with every test green,
+      # which the job timeout above would catch as a 20-minute failure.
+      - name: Test
+        run: npx jest --ci
+
+      # The only check that exercises Metro. It is what catches a broken asset path — a
+      # renamed sprite under assets/characters/ typechecks and lints clean but fails here.
+      - name: Bundle for Android
+        run: npx expo export --platform android --output-dir "$RUNNER_TEMP/export"
+
+      # Dependency-version alignment against the Expo SDK. Non-blocking on purpose: it
+      # queries Expo's servers for compatibility data, so a network hiccup would fail an
+      # otherwise good PR. Read its output when it goes red; do not ignore it by habit.
+      - name: Expo doctor
+        run: npx expo-doctor
+        continue-on-error: true

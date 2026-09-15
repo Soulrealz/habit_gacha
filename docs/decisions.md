@@ -5,6 +5,41 @@ re-litigated or forgotten. Newest at top.
 
 ---
 
+### 2026-09-15 — CI on every push and PR to master
+
+- **Decision**: `.github/workflows/ci.yml` runs typecheck, lint, `jest --ci`, and an
+  Android bundle on every push and PR to `master`, on Node 22.
+- **Why**: The architecture's central bet is that two developers can work parallel
+  verticals without blocking each other, and the only thing holding that together is a
+  shared foundation nobody was automatically re-checking. 139 tests existed and ran only
+  when someone remembered. A foundation regression would have surfaced as the _other_
+  developer's vertical breaking.
+- **Decision**: `expo export` is included even though it is the slowest step. It is the
+  only check that exercises Metro, so it is the only one that catches a broken asset
+  path — a renamed sprite typechecks and lints clean and fails only here.
+- **Decision**: `expo-doctor` runs `continue-on-error: true`. It queries Expo's servers
+  for version-compatibility data, so a network hiccup would redden an otherwise good PR.
+  Read it when it goes red rather than ignoring it by habit.
+- **Consequence**: a leaked timer that leaves jest hanging with every test green now
+  shows up as a 20-minute job timeout rather than an invisible local annoyance.
+- **Status**: Every step verified locally against this repo; **the workflow itself has
+  never run on GitHub.**
+
+---
+
+### 2026-09-15 — `react-test-renderer` is a declared devDependency
+
+- **Decision**: Added `react-test-renderer` to `devDependencies` explicitly, pinned to the
+  19.2.3 already in the tree.
+- **Why**: The screen tests `import` it directly, but it was only present transitively via
+  `jest-expo` — while its _types_ were already a direct devDependency. Depending on a
+  transitive package for a direct import breaks silently the day the parent drops it, and
+  having the types declared but not the implementation was incoherent.
+- **Consequence**: still dev-only and absent from the app bundle. This corrects an earlier
+  claim that the screen tests added no dependency — true for runtime, not for dev.
+
+---
+
 ### 2026-09-15 — Placeholder sprites are generated, not copied
 
 - **Decision**: `assets/characters/` holds nine generated PNGs — each character's initial
@@ -63,6 +98,8 @@ re-litigated or forgotten. Newest at top.
   dependency was added; `@types/react-test-renderer` was added as a devDependency.
 - **Status**: 121/121 tests passing. **Still never run on a device** — these complement
   the device pass, they do not replace it.
+
+---
 
 ### 2026-09-15 — All database writes go through one in-process queue
 

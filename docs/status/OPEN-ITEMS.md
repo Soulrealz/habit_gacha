@@ -141,6 +141,11 @@ That leaves, and **both need something no machine here has** — a device, or an
    rest are silhouettes, which is uncheckable when every image is the same. Real art drops
    in at the same paths with no code change; delete the script when it does.
 
+**CI now guards the foundation.** `.github/workflows/ci.yml` runs the typecheck, lint,
+`jest --ci` and an Android bundle on every push and PR to `master`. Every step was
+verified locally, but **the workflow has never run on GitHub** — the first PR will be its
+first execution.
+
 The verticals are designed to share no files. Stay inside your plan's stated file
 boundary — the "Global Constraints" section of each plan lists exactly what it owns.
 Anything both verticals need belongs in the foundation, which means it needs a

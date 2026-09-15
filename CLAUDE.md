@@ -64,6 +64,9 @@ subfolders — don't pre-create empty feature folders.
   - Use kebab-case, short enough to read in a branch list, descriptive
     enough that a teammate knows what it's for without opening it.
 - One feature or fix per branch. Don't bundle unrelated changes.
+- CI (`.github/workflows/ci.yml`) runs the typecheck, lint, tests and an Android
+  bundle on every push and PR to `master`. Run `npx jest`, `npx tsc --noEmit` and
+  `npx expo lint` before pushing rather than finding out from a red PR.
 
 ## Working conventions (for both devs + Claude)
 
