@@ -1,22 +1,24 @@
 # Open Items — read before trusting anything in `src/`
 
-Last updated: 2026-09-12. This file is auto-loaded into every Claude session via
+Last updated: 2026-09-15. This file is auto-loaded into every Claude session via
 `CLAUDE.md`. Keep it short and current; delete items once they are genuinely done.
 
 ## Where the project actually stands
 
-The **foundation layer is written but has never been run.** Branch `feat/foundation`
-contains the database layer, shared types, tunable config, the ticket ledger, and a
-navigation shell. It typechecks, lints, passes 10/10 unit tests, and produces a valid
-Android bundle — but **no human or agent has ever launched this app.**
+The foundation layer is **merged into `master`** (PR #1): the SQLite schema and migration
+runner, shared types, tunable config, the ticket ledger, and a three-tab navigation
+shell. It typechecks, lints, passes 10/10 unit tests, and produces a valid Android
+bundle.
 
-Do not describe the foundation as "working", "tested", or "verified" to anyone. It is
-written and statically checked. That is a different claim.
+But **it has still never been run.** No human or agent has launched this app. Merged is
+not the same as verified — do not describe the foundation as "working", "tested", or
+"verified" to anyone. It is written, statically checked, and merged.
 
-## ⚠️ Must be confirmed on a real device before building on this
+## ⚠️ Still unconfirmed — nobody has run this app
 
-Nobody has an Android SDK, emulator, or device attached to the machine this was built
-on. These are unverified and each one could be broken:
+The machine this was built on has no Android SDK, emulator, or device. Each of these is
+unverified and could be broken. You do not have to clear them before starting a vertical,
+but you will hit them the moment you first launch the app:
 
 1. **The native `expo-sqlite` module actually loads.** A successful Metro bundle does
    not prove this. If it fails, `initDatabase()` rejects and the app shows its error
@@ -45,25 +47,61 @@ never goes wrong.
 the outer `db` — `txn` is a separate connection holding the write lock, so a stray `db`
 call inside the callback deadlocks.
 
-## Nothing is committed
+### 🔴 `withExclusiveTransactionAsync` does not serialise either — read this
 
-All foundation work sits uncommitted in the working tree by the repo owner's choice. It
-must be reviewed and committed before either vertical starts, because both verticals
-depend on it.
+Found 2026-09-15 while building the habits vertical, confirmed by reading
+`node_modules/expo-sqlite/build/SQLiteDatabase.js:155`. The name oversells it. The
+implementation opens a **new connection** and issues a plain **deferred** `BEGIN` — not
+`BEGIN EXCLUSIVE`, and with no queue. Expo's own doc comment on that function admits it:
+_"As long as the transaction is converted into a write transaction, the other async write
+queries will abort with `database is locked` error."_ Nothing in this project sets
+`busy_timeout`, so the losing caller gets `SQLITE_BUSY` **immediately**.
 
-## Next steps, in order
+Two consequences:
 
-1. **Run the app and clear the four checks above.** Fix anything they surface.
-2. **Commit and merge `feat/foundation` into `master`.** Both vertical plans are
-   hard-blocked until this lands — they import from it.
-3. **Then the two verticals proceed in parallel**, one developer each:
-   - Habits: `docs/superpowers/plans/core-loop/September_2026/2026-09-12-habits-vertical.md`
-   - Gacha: `docs/superpowers/plans/core-loop/September_2026/2026-09-12-gacha-vertical.md`
+- The good one: this fails loud, not silent. It cannot corrupt the ledger or break the
+  award-once rule the way `withTransactionAsync` could. The earlier fix was still right.
+- The bad one: the spec (`core-loop-design.md` §"concurrency") states that a second
+  concurrent caller "reads 0 and returns false". **It does not — it throws.** Every
+  caller needs an error path. `spendTicket` on the Summon tab has the same exposure.
+
+The habits vertical works around it locally: `adjustHabitCount` serialises its own
+callers through a JS promise queue, and `TodayScreen` catches and surfaces failures. That
+only covers collisions _within_ the habits module. A habit tap racing a summon still
+collides.
+
+**The durable fix is one line in the foundation** — `PRAGMA busy_timeout = 5000` next to
+the `journal_mode = WAL` pragma in `initDatabase()` (`src/services/db/index.ts`). It was
+deliberately **not** applied unilaterally, because `src/services/db/` is shared and this
+file says shared changes need a conversation first. **That conversation is this item.**
+Whoever picks it up should also decide whether the gacha vertical wants the same JS queue
+around `spendTicket`. Verify it on the device run in the same rapid-tap test as item 4.
+
+## Next steps
+
+**The habits vertical is written** (2026-09-15) and sits **uncommitted in the working
+tree on `master`** — it still needs a `feat/habit-tracking` branch, a commit, and a PR.
+It passes 33/33 tests, `tsc --noEmit`, `expo lint`, and an Android export, and its one
+unfinished gate is the seven-step device walkthrough in Task 5 of its plan, which this
+machine cannot run. Decisions taken while building it, with alternatives:
+`docs/status/2026-09-15-habits-vertical-decisions.md`.
+
+That leaves:
+
+- Gacha vertical: `docs/superpowers/plans/core-loop/September_2026/2026-09-12-gacha-vertical.md`
+- The device walkthrough for habits: `docs/superpowers/plans/core-loop/September_2026/2026-09-12-habits-vertical.md` (Task 5, Step 3)
+- The `busy_timeout` conversation flagged in red above.
 
 The verticals are designed to share no files. Stay inside your plan's stated file
 boundary — the "Global Constraints" section of each plan lists exactly what it owns.
 Anything both verticals need belongs in the foundation, which means it needs a
-conversation first, not a unilateral edit.
+conversation with the other developer first, not a unilateral edit.
+
+**Expect the first device run to surface foundation bugs, not just your own.** Each
+vertical plan ends in a device walkthrough, and whoever gets there first is also running
+the foundation for the first time ever. If the app dies at the spinner or the error
+screen, suspect `expo-sqlite` loading or migrations before you suspect your vertical.
+Clear the four checks above when you get there, then delete that section from this file.
 
 ## Decisions made under uncertainty — revisit if you disagree
 

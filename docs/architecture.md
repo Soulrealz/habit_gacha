@@ -9,14 +9,19 @@ just where we record what's true right now.
 (protein goal, studying, etc.) earns summoning tickets. Tickets are spent
 pulling for pixel-art/anime-style character sprites to collect.
 
-## Current state (foundation written, never run)
+## Current state (written, never run)
 
 - Expo (managed workflow) + React Native + TypeScript
-- **Foundation layer exists** on `feat/foundation`, uncommitted: SQLite schema and
-  migration runner, shared types, tunable config, the ticket ledger, and a
-  three-tab navigation shell. Statically verified only — see
-  `docs/status/OPEN-ITEMS.md` for what remains unconfirmed.
-- No habit tracking, gacha, or ad logic yet. Those are the two vertical plans.
+- **Foundation layer is merged to `master`** (PR #1): SQLite schema and migration
+  runner, shared types, tunable config, the ticket ledger, and a three-tab
+  navigation shell.
+- **Habits vertical is written, uncommitted in the working tree**: the gym habit
+  catalog (`src/data/habits.ts`), the pure award rules and logging service
+  (`src/services/habits/`), `HabitRow`, and a real `TodayScreen`.
+- No gacha or ad logic yet — the gacha vertical plan is still unstarted.
+- Everything above is statically verified only. Nothing has ever run on a device —
+  see `docs/status/OPEN-ITEMS.md` for what remains unconfirmed, including a
+  foundation-level `busy_timeout` gap the habits vertical works around locally.
 
 ## Open decisions
 
