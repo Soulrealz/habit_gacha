@@ -163,6 +163,33 @@ naming rather than assuming closed:
   cause (the lockfile diff never touches `expo` itself). Exercise the untouched tabs, not
   just Collection, on the device run for this reason.
 
+## Developer panel — dev builds only
+
+Added 2026-09-16. A **Developer** section at the bottom of the How it works tab, rendered
+only when `__DEV__`. Three controls:
+
+- **+10 / +50 tickets** — grants outright, ignoring the daily cap.
+- **Reset collection** — wipes `owned_characters`; the grid goes back to silhouettes.
+- **Reset pity counter** — back to 0, so the guarantee can be tested from a known state.
+
+Both resets need two taps: they sit on a screen you open to read the pull rates, so a
+stray tap must not cost a test session.
+
+**Grants cannot consume a daily cap.** `awardTickets` enforces the cap by summing today's
+positive ledger rows, so a grant dated today would silently exhaust it and stop real habit
+completions paying out — corrupting the exact behaviour you granted the tickets to test.
+Dev grants are therefore written with `log_date = '1970-01-01'` and `reason = 'dev_grant'`:
+they count toward the balance, which sums the whole ledger unfiltered, but never toward any
+day's cap. The alternative — teaching `awardTickets` to exclude `dev_grant` — would have
+meant editing the ticket seam the habits vertical shares.
+
+**The `__DEV__` check in the UI is not the safety mechanism.** `src/services/dev` throws on
+every operation outside a dev build. A UI gate is one misplaced edit from failing open, and
+all three actions either destroy data or mint currency. There is a test asserting all three
+refuse and write nothing when `__DEV__` is false.
+
+Like everything else here, **never run on a device.**
+
 ## Design questions raised by the first device run
 
 All of these came out of playing the loop on 2026-09-15. None is a bug in the machinery;
@@ -218,9 +245,10 @@ real economy. Unverified on a device: the fourth tab's effect on the tab bar.
 - **Dev config overrides rates only, not `dailyTicketCap`.** The two vertical plans
   originally contradicted each other here: the gacha walkthrough wanted a raised dev cap,
   the habits walkthrough needed the 5/day cap to actually bind. The spec authorises a
-  rate override only, so the cap now stays at 5 in dev. Consequence: if you need more
-  than five pulls in one sitting while testing gacha, raise `dailyTicketCap` in
-  `src/config/gacha.ts` as a local uncommitted edit and revert before your PR.
+  rate override only, so the cap stays at 5 in dev — and it still does. **The old
+  workaround of raising `dailyTicketCap` as a local uncommitted edit is obsolete: use the
+  Developer panel above instead.** It was always a trap, because forgetting to revert it
+  ships a changed economy.
 - **`app.json` gained a `plugins: ["expo-sqlite"]` entry.** Automatic and required; do
   not remove it.
 - **Two functions were deliberately not built** because nothing consumes them:

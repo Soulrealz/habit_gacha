@@ -24,8 +24,14 @@ Then press `a` for Android (or scan the QR with Expo Go).
 Dev build note: `__DEV__` is true, so `DEV_GACHA_CONFIG` applies — a **25% 5★ rate and
 pity at 5**, which is what makes the GUARANTEED badge reachable in one sitting. The daily
 ticket cap stays at **5** in dev deliberately, because the habits walkthrough needs it to
-bind. If you need more than five pulls in one sitting, raise `dailyTicketCap` in
-`src/config/gacha.ts` as a local uncommitted edit and revert it before any PR.
+bind.
+
+For more than five pulls in a sitting, use the **Developer panel** at the bottom of the
+How it works tab (dev builds only): `+10` / `+50 🎟` grants outright, and it can also reset
+the collection and the pity counter. Grants are dated outside any real day, so they cannot
+consume the cap and cannot stop the habits walkthrough paying out — you can grant and still
+test the cap in the same session. **Do not edit `dailyTicketCap` by hand any more**; the old
+workaround shipped a changed economy whenever someone forgot to revert it.
 
 ---
 
@@ -82,13 +88,25 @@ hold against real SQLite. Step 7 is the one nothing has ever tested.
 
 ## Phase 3b — Character ranks (2026-09-16, never run on a device)
 
-Everything below is new since the last device run and is unit-tested only. Dev pity (5)
-gets you a 5★ fast, but **R4 and R5 on a 5★ need 5–6 copies of the same 5★**, which the
-daily cap makes impossible in one sitting even with pity maxed every day — `RANK_THRESHOLDS`
-in `src/config/gacha.ts` is deliberately not dev-overridden (see `docs/status/OPEN-ITEMS.md`
-"Decisions made under uncertainty"). The practical route to seeing R4/R5 is **temporarily
-lowering `RANK_THRESHOLDS`** as a local uncommitted edit — e.g. `5: [1, 1, 2, 2, 3]` — and
-reverting before any PR, same pattern as raising `dailyTicketCap` above.
+Everything below is new since the last device run and is unit-tested only. `RANK_THRESHOLDS`
+in `src/config/gacha.ts` is deliberately not dev-overridden (see `docs/status/OPEN-ITEMS.md`,
+"Decisions made under uncertainty"), so ranks cost their real number of copies even in dev.
+
+**The Developer panel changes what is reachable, and not evenly.** Grant `+50 🎟` and spend
+it, and the counter-intuitive result is that the _rarest_ characters max out first: dev rates
+flood you with 5★s (~33% effective, pity at 5) and there are only two 5★ characters to split
+them between, while R5 on a 5★ costs just 6 copies.
+
+| Rarity | Copies for R5 | Roughly what 50 dev pulls yields, per character | Reachable?                                |
+| ------ | ------------- | ----------------------------------------------- | ----------------------------------------- |
+| 5★     | 6             | ~8                                              | ✅ one `+50` grant, give or take variance |
+| 4★     | 16            | ~6                                              | about three grants                        |
+| 3★     | 40            | ~4                                              | ❌ not practically                        |
+
+So: **use the panel for 5★ ranks**, and for 3★/4★ still fall back to **temporarily lowering
+`RANK_THRESHOLDS`** as a local uncommitted edit — e.g. `3: [1, 1, 2, 2, 3]` — reverting
+before any PR. The numbers above are expectations, not guarantees; a bad run of luck may
+need a second grant.
 
 - [ ] 1. From the Collection grid, **tap an owned character.** It navigates to a detail
       screen (`CharacterDetailScreen`) showing its art, name, rarity and copy count. ←
